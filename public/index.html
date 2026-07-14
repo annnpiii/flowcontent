@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icons/icon-512.png">
+<meta name="theme-color" content="#1a1714">
+<title>Flowcontent — Marketing Studio</title>
+
+<!-- Fonts: Outfit (display) + Inter (body) + JetBrains Mono (data) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        // Warm editorial base
+        page: '#f6f3ef',
+        surface: '#ffffff',
+        'surface-hover': '#faf8f5',
+        sidebar: '#1c1816',
+        'sidebar-hover': '#2a2522',
+        'sidebar-active': '#2f2a26',
+        'text-primary': '#1a1714',
+        'text-secondary': '#8a7e7a',
+        'text-muted': '#b0a6a0',
+        'border-light': '#e6dfd7',
+        'border-lighter': '#f0eae2',
+        // Bold hot pink accent
+        accent: '#FF1695',
+        'accent-hover': '#d80d7a',
+        'accent-subtle': '#ffeef4',
+        'accent-light': '#ffd6e8',
+        // Utility
+        success: '#16a34a',
+        warning: '#f59e0b',
+        error: '#dc2626',
+        'success-bg': '#f0fdf4',
+        'warning-bg': '#fffbeb',
+        'error-bg': '#fef2f2',
+      },
+      fontFamily: {
+        display: ['Outfit', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+      fontSize: {
+        'display-lg': ['44px', { lineHeight: '1.1', fontWeight: '700' }],
+        'display-md': ['32px', { lineHeight: '1.15', fontWeight: '700' }],
+        'display-sm': ['24px', { lineHeight: '1.2', fontWeight: '600' }],
+        'title-lg': ['20px', { lineHeight: '1.3', fontWeight: '600' }],
+        'title-md': ['16px', { lineHeight: '1.4', fontWeight: '600' }],
+        'body-md': ['14px', { lineHeight: '1.5', fontWeight: '400' }],
+        'body-sm': ['13px', { lineHeight: '1.5', fontWeight: '400' }],
+        'label-lg': ['13px', { lineHeight: '1.4', fontWeight: '600', letterSpacing: '0.01em' }],
+        'label-sm': ['11px', { lineHeight: '1.4', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase' }],
+        'caption': ['12px', { lineHeight: '1.4', fontWeight: '400' }],
+      },
+      borderRadius: {
+        'card': '14px',
+        'input': '10px',
+        'pill': '9999px',
+      },
+      spacing: {
+        'sidebar': '260px',
+      },
+      boxShadow: {
+        'card': '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)',
+        'card-hover': '0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04)',
+        'elevated': '0 8px 24px rgba(0,0,0,0.08)',
+        'modal': '0 20px 60px rgba(0,0,0,0.12)',
+      },
+    }
+  }
+}
+</script>
+<link rel="stylesheet" href="/css/style.css?v=19">
+</head>
+<body class="bg-page font-body text-text-primary antialiased">
+
+<!-- ====== LOGIN PAGE ====== -->
+<div id="loginPage" class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+  <!-- Decorative background -->
+  <div class="absolute inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute -top-32 -right-32 w-[500px] h-[500px] bg-accent/5 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-32 -left-32 w-[400px] h-[400px] bg-accent/3 rounded-full blur-3xl"></div>
+  </div>
+
+  <main class="w-full max-w-[420px] relative z-10">
+    <div class="text-center mb-8">
+      <h1 class="font-display text-display-lg text-text-primary tracking-tight mb-1">Flow<span class="text-accent">content</span></h1>
+      <p class="text-label-sm text-text-secondary tracking-[0.12em]">Platform Manajemen Konten</p>
+    </div>
+
+    <div class="bg-surface border border-border-light rounded-card shadow-elevated p-8">
+      <form id="loginForm" onsubmit="login();return false" class="space-y-5">
+        <div class="space-y-1.5">
+          <label class="text-label-lg text-text-primary block" for="loginUsername">Username</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xl pointer-events-none">person</span>
+            <input class="w-full pl-10 pr-4 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginUsername" placeholder="Masukin username kamu" type="text">
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-label-lg text-text-primary block" for="loginPassword">Password</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xl pointer-events-none">lock</span>
+            <input class="w-full pl-10 pr-4 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginPassword" placeholder="Masukin password kamu" type="password">
+          </div>
+        </div>
+        <button class="w-full bg-accent text-white py-3 rounded-input text-label-lg hover:bg-accent-hover active:scale-[0.98] transition-all duration-150 shadow-sm" type="submit">
+          <span class="flex items-center justify-center gap-2">
+            Masuk
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+          </span>
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<!-- ====== APP LAYOUT ====== -->
+<div id="appLayout" class="hidden min-h-screen flex">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar fixed left-0 top-0 h-screen w-sidebar bg-sidebar flex flex-col z-50 transition-transform duration-300 ease-out">
+    <!-- Brand Switcher -->
+    <div class="px-3 pt-4 pb-3 border-b border-white/[0.06] relative">
+      <!-- Mobile close button -->
+      <button class="mobile-sidebar-close absolute top-4 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-sidebar-hover transition-all z-10" onclick="toggleSidebar()">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+      <button id="brandSwitcherBtn" class="flex items-center gap-2.5 w-full px-2.5 py-2 pr-10 rounded-lg hover:bg-sidebar-hover transition-all text-left" onclick="toggleBrandDropdown()">
+        <div id="brandSwitcherIcon" class="w-7 h-7 rounded-md bg-accent flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-white text-sm" style="font-variation-settings:'FILL'1">auto_awesome</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <span id="brandSwitcherName" class="block text-sm text-white font-medium leading-tight truncate">Curabeauty</span>
+          <span id="brandSwitcherLabel" class="block text-[10px] text-white/40 uppercase tracking-[0.12em] leading-tight">Brand</span>
+        </div>
+        <span class="material-symbols-outlined text-white/40 text-lg transition-transform" id="brandChevron">expand_more</span>
+      </button>
+      <!-- Dropdown -->
+      <div id="brandDropdown" class="hidden mt-1 px-1 py-1 bg-sidebar-hover border border-white/[0.08] rounded-card shadow-elevated max-h-[240px] overflow-y-auto">
+        <div id="brandList"></div>
+      </div>
+    </div>
+
+    <!-- Nav Items -->
+    <nav class="flex-1 px-2.5 py-3 space-y-0.5 overflow-y-auto scrollbar-thin">
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('dashboard')" data-page="dashboard">
+        <span class="material-symbols-outlined text-xl">dashboard</span>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('contentplan')" data-page="contentplan">
+        <span class="material-symbols-outlined text-xl">assignment</span>
+        <span>Rencana Konten</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('calendar')" data-page="calendar">
+        <span class="material-symbols-outlined text-xl">calendar_month</span>
+        <span>Kalender Konten</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('approval')" data-page="approval" id="approvalNav">
+        <span class="material-symbols-outlined text-xl">verified</span>
+        <span>Approval</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('hub')" data-page="hub">
+        <span class="material-symbols-outlined text-xl">photo_library</span>
+        <span>Pusat Konten</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('trends')" data-page="trends">
+        <span class="material-symbols-outlined text-xl">trending_up</span>
+        <span>Pantau Tren</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('assetgen')" data-page="assetgen">
+        <span class="material-symbols-outlined text-xl">auto_fix_high</span>
+        <span>Buat Desain</span>
+      </button>
+      <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('report')" data-page="report">
+        <span class="material-symbols-outlined text-xl">analytics</span>
+        <span>Laporan</span>
+      </button>
+
+      <!-- Admin section -->
+      <div id="adminNav" class="hidden pt-3 mt-2 border-t border-white/[0.06] space-y-0.5">
+        <div class="px-3 pb-1">
+          <span class="text-[10px] text-white/20 uppercase tracking-[0.15em] font-semibold">Admin</span>
+        </div>
+        <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('brands')" data-page="brands">
+          <span class="material-symbols-outlined text-xl">dashboard_customize</span>
+          <span>Brand</span>
+        </button>
+        <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('promo')" data-page="promo" id="promoNav">
+          <span class="material-symbols-outlined text-xl">campaign</span>
+          <span>Promo</span>
+        </button>
+        <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('users')" data-page="users">
+          <span class="material-symbols-outlined text-xl">groups</span>
+          <span>Kelola Tim</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- User Section -->
+    <div class="px-2.5 pt-3 pb-4 border-t border-white/[0.06] mt-auto">
+      <div class="flex items-center gap-0.5 px-1 mb-1">
+        <button id="darkModeToggle" class="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-text-muted hover:text-white/80 hover:bg-sidebar-hover transition-all text-xs" onclick="toggleDarkMode()">
+          <span class="material-symbols-outlined text-lg" id="darkModeIcon">dark_mode</span>
+          <span id="darkModeLabel">Gelap</span>
+        </button>
+      </div>
+
+      <button class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-text-muted hover:text-white/80 hover:bg-sidebar-hover transition-all text-xs" onclick="logout()">
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span>Keluar</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Sidebar Backdrop (mobile) -->
+  <div id="sidebarBackdrop" class="fixed inset-0 bg-black/40 z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+  <!-- Main Area -->
+  <div class="flex-1 ml-sidebar min-h-screen flex flex-col">
+    <!-- Topbar -->
+    <header id="topbar" class="sticky top-0 z-30 bg-page/80 backdrop-blur-lg border-b border-border-light/60">
+      <div class="flex items-center justify-between h-14 px-4 sm:px-6">
+        <div class="flex items-center gap-2 min-w-0">
+          <button class="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface transition-all text-text-secondary active:scale-95" onclick="toggleSidebar()">
+            <span class="material-symbols-outlined text-xl">menu</span>
+          </button>
+          <div class="flex items-center gap-2 min-w-0">
+            <span id="brandPill" class="hidden shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full tracking-wide"></span>
+          </div>
+          <div class="hidden sm:flex h-5 w-px bg-border-light mx-1"></div>
+          <span id="topbarSubtitle" class="hidden sm:block text-caption text-text-secondary/60 truncate">Semua alur konten dalam satu tempat</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="relative hidden sm:block">
+            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-lg pointer-events-none">search</span>
+            <input id="globalSearch" class="w-[200px] lg:w-[260px] h-9 pl-8 pr-3 rounded-xl bg-surface border border-border-light text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" placeholder="Cari konten..." autocomplete="off" oninput="searchDebounce(this.value)">
+            <div id="searchResults" class="absolute top-full left-0 right-0 mt-1 bg-surface border border-border-light rounded-card shadow-elevated z-50 hidden max-h-[60vh] overflow-y-auto"></div>
+          </div>
+          <div class="h-6 w-px bg-border-light mx-0.5"></div>
+          <div id="topbarRight" class="flex items-center gap-1.5"><div class="flex items-center gap-1.5 px-2 py-1 rounded-xl hover:bg-surface/50 transition-all cursor-default"><div class="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold text-[11px]" id="topbarUserAvatar">U</div><span class="text-label-sm text-text-primary hidden sm:block" id="topbarUserName">User</span></div></div>
+          <div class="h-6 w-px bg-border-light mx-0.5"></div>
+          <div class="notification-bell relative">
+            <button class="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface transition-all text-text-secondary active:scale-95 relative" onclick="toggleNotifications()">
+              <span class="material-symbols-outlined text-xl">notifications</span>
+              <span id="notifBadge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-accent shadow-sm shadow-accent/30 flex items-center justify-center text-[9px] font-bold text-white leading-none px-1"></span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+      <!-- Accent bottom line -->
+      <div class="h-[2px] bg-gradient-to-r from-accent/60 via-accent/20 to-transparent"></div>
+    </header>
+
+    <!-- Notification Dropdown -->
+    <div id="notifDropdown" class="notif-dropdown hidden fixed right-6 top-16 w-[380px] max-h-[70vh] overflow-hidden z-50 flex flex-col bg-surface border border-border-light rounded-card shadow-elevated">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-border-light">
+        <span class="text-title-md text-text-primary">Notifikasi</span>
+        <div class="flex gap-3">
+          <button class="text-label-sm text-text-muted hover:text-text-primary transition-colors" onclick="markAllRead()">Baca semua</button>
+          <button class="text-label-sm text-error/70 hover:text-error transition-colors" onclick="deleteAllReadNotifs()">Hapus semua</button>
+        </div>
+      </div>
+      <div id="notifList" class="flex-1 overflow-y-auto"></div>
+    </div>
+
+    <!-- Page Content -->
+    <main class="flex-1 px-6 py-6 page-scroll" id="pageContent">
+      <!-- Content rendered by JS -->
+    </main>
+  </div>
+</div>
+
+<!-- ====== MODAL ====== -->
+<div id="modalOverlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden items-center justify-center z-[1000] p-6" onclick="if(event.target===this)closeModal()">
+  <div class="bg-surface border border-border-light rounded-card shadow-modal w-[640px] max-w-full max-h-[85vh] overflow-y-auto" id="modalContent">
+    <div class="flex items-center justify-between px-6 py-5 border-b border-border-light">
+      <h3 id="modalTitle" class="font-display text-display-sm text-text-primary">Modal</h3>
+      <button class="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-surface-hover transition-colors" onclick="closeModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="px-6 py-5" id="modalBody"></div>
+    <div class="flex justify-end gap-3 px-6 py-5 border-t border-border-light" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- ====== TOAST CONTAINER ====== -->
+<div id="toastContainer" class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-3 pointer-events-none"></div>
+
+<script src="/js/app.js?v=86"></script>
+<script>if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js?v=4');
+}</script>
+</body>
+</html>

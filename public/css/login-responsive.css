@@ -1,0 +1,108 @@
+/* ====== LOGIN PAGE RESPONSIVE ====== */
+#loginPage {
+  height: 100dvh;
+  height: 100vh; /* fallback */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+#loginPage .decorative-blob {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+@media (max-width: 480px) {
+  #loginPage {
+    padding: 12px !important;
+    height: 100dvh;
+    height: 100vh;
+  }
+  #loginPage main {
+    max-width: 100% !important;
+  }
+  #loginPage .text-center.mb-8 {
+    margin-bottom: 16px !important;
+  }
+  #loginPage h1 {
+    font-size: 28px !important;
+  }
+  #loginPage p {
+    font-size: 10px !important;
+  }
+  #loginPage .p-8 {
+    padding: 20px !important;
+  }
+  #loginPage form.space-y-5 {
+    gap: 14px;
+  }
+  #loginPage .space-y-1\.5 {
+    gap: 4px;
+  }
+  #loginPage input {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    font-size: 14px !important;
+  }
+  #loginPage button[type="submit"] {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    min-height: 48px;
+    font-size: 14px;
+  }
+  #loginPage label {
+    font-size: 12px !important;
+  }
+  /* Hide decorative blobs on small screens */
+  #loginPage .absolute.inset-0 .w-\[500px\] {
+    width: 200px !important;
+    height: 200px !important;
+    top: -60px !important;
+    right: -60px !important;
+  }
+  #loginPage .absolute.inset-0 .w-\[400px\] {
+    width: 160px !important;
+    height: 160px !important;
+    bottom: -60px !important;
+    left: -60px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  #loginPage {
+    padding: 10px !important;
+  }
+  #loginPage .p-8 {
+    padding: 16px !important;
+  }
+  #loginPage h1 {
+    font-size: 24px !important;
+  }
+  #loginPage form.space-y-5 {
+    gap: 10px;
+  }
+}
+
+@media (max-height: 600px) {
+  /* Landscape mode / short screens */
+  #loginPage {
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+  #loginPage .text-center.mb-8 {
+    margin-bottom: 8px !important;
+  }
+  #loginPage h1 {
+    font-size: 24px !important;
+  }
+  #loginPage p {
+    font-size: 10px !important;
+  }
+  #loginPage .p-8 {
+    padding: 14px !important;
+  }
+  #loginPage form.space-y-5 {
+    gap: 8px;
+  }
+}
