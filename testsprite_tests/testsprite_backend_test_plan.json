@@ -1,0 +1,177 @@
+[
+  {
+    "id": "TC001",
+    "title": "Login dengan kredensial valid",
+    "description": "POST /api/login dengan admin/admin123 harus return 200 dengan user, brands, activeBrandId"
+  },
+  {
+    "id": "TC002",
+    "title": "Login dengan password salah",
+    "description": "POST /api/login dengan password salah harus return 401"
+  },
+  {
+    "id": "TC003",
+    "title": "Get current user session",
+    "description": "GET /api/me dengan session valid harus return 200 dengan user profile dan brands"
+  },
+  {
+    "id": "TC004",
+    "title": "Logout user",
+    "description": "POST /api/logout harus destroy session dan return 200"
+  },
+  {
+    "id": "TC005",
+    "title": "Dashboard KPIs",
+    "description": "GET /api/dashboard harus return status counts (drafts, pendingReview, approved, etc)"
+  },
+  {
+    "id": "TC006",
+    "title": "Create content draft",
+    "description": "POST /api/contents dengan data valid harus return 200 dengan id dan ok true"
+  },
+  {
+    "id": "TC007",
+    "title": "List contents",
+    "description": "GET /api/contents harus return array contents"
+  },
+  {
+    "id": "TC008",
+    "title": "Get content detail",
+    "description": "GET /api/contents/:id harus return content detail dengan logs dan versions"
+  },
+  {
+    "id": "TC009",
+    "title": "Update content",
+    "description": "PUT /api/contents/:id harus update content dan return 200"
+  },
+  {
+    "id": "TC010",
+    "title": "Get brands list",
+    "description": "GET /api/brands harus return array brands"
+  },
+  {
+    "id": "TC011",
+    "title": "Create brand",
+    "description": "POST /api/brands sebagai admin harus return 200 dengan id"
+  },
+  {
+    "id": "TC012",
+    "title": "Switch active brand",
+    "description": "POST /api/brand/switch dengan brand_id valid harus return 200"
+  },
+  {
+    "id": "TC013",
+    "title": "Get brand members",
+    "description": "GET /api/brands/:id/members harus return array members"
+  },
+  {
+    "id": "TC014",
+    "title": "Add brand member",
+    "description": "POST /api/brands/:id/members harus add member dan return 200"
+  },
+  {
+    "id": "TC015",
+    "title": "Create user (admin)",
+    "description": "POST /api/users sebagai admin harus create user dan return 200"
+  },
+  {
+    "id": "TC016",
+    "title": "List users (admin)",
+    "description": "GET /api/users sebagai admin harus return array users"
+  },
+  {
+    "id": "TC017",
+    "title": "Delete user (admin)",
+    "description": "DELETE /api/users/:id sebagai admin harus return 200"
+  },
+  {
+    "id": "TC018",
+    "title": "Create content plan",
+    "description": "POST /api/content-plans dengan title valid harus return 200 dengan id"
+  },
+  {
+    "id": "TC019",
+    "title": "List content plans",
+    "description": "GET /api/content-plans harus return plans dengan pagination"
+  },
+  {
+    "id": "TC020",
+    "title": "Update content plan",
+    "description": "PUT /api/content-plans/:id harus update plan dan return 200"
+  },
+  {
+    "id": "TC021",
+    "title": "Create promo",
+    "description": "POST /api/promos dengan data valid harus return 200"
+  },
+  {
+    "id": "TC022",
+    "title": "List promos",
+    "description": "GET /api/promos harus return array promos"
+  },
+  {
+    "id": "TC023",
+    "title": "List content folders",
+    "description": "GET /api/folders harus return array folders dengan item_count"
+  },
+  {
+    "id": "TC024",
+    "title": "Create folder",
+    "description": "POST /api/folders dengan name valid harus return 200"
+  },
+  {
+    "id": "TC025",
+    "title": "Get notifications",
+    "description": "GET /api/notifications harus return notifications dengan unread count"
+  },
+  {
+    "id": "TC026",
+    "title": "Get trends",
+    "description": "GET /api/trends harus return array trends"
+  },
+  {
+    "id": "TC027",
+    "title": "Create manual trend",
+    "description": "POST /api/trends dengan data valid harus return 200"
+  },
+  {
+    "id": "TC028",
+    "title": "Search content",
+    "description": "GET /api/search dengan query minimal 2 karakter harus return results"
+  },
+  {
+    "id": "TC029",
+    "title": "Get activity logs",
+    "description": "GET /api/activities harus return array activity logs"
+  },
+  {
+    "id": "TC030",
+    "title": "Get team members",
+    "description": "GET /api/team harus return array users"
+  },
+  {
+    "id": "TC031",
+    "title": "Get Canva templates",
+    "description": "GET /api/canva-templates harus return array templates"
+  },
+  {
+    "id": "TC032",
+    "title": "Global search",
+    "description": "GET /api/search?q=test harus return results dari semua tipe konten"
+  },
+  {
+    "id": "TC033",
+    "title": "Bulk delete contents (admin)",
+    "description": "DELETE /api/contents/bulk dengan array ids harus return 200"
+  },
+  {
+    "id": "TC034",
+    "title": "Bulk update content status (admin)",
+    "description": "PATCH /api/contents/bulk/status dengan ids dan status harus return 200"
+  },
+  {
+    "id": "TC035",
+    "title": "Delete content plan (admin)",
+    "description": "DELETE /api/content-plans/:id harus return 200"
+  }
+]

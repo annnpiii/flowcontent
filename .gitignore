@@ -3,3 +3,6 @@ node_modules/
 data/
 uploads/
 .opencode/
+.slim/deepwork/
+
+testsprite_tests\tmp\config.json

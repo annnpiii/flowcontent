@@ -1,4 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"]
+  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
+  "mcp": {
+    "TestSprite": {
+      "type": "local",
+      "command": ["npx", "@testsprite/testsprite-mcp@latest"],
+      "enabled": true,
+      "environment": {
+         "API_KEY": "sk-user-WiNzMUnWFcxLKF9m6aFZ1Wj721oD9FHU85L_FNJ8fesU8X1RznqJRerZUyk6Mjl18KWbnl5EK8eAj6SCcb_jHrRDiaEdkwlCazjl_yuvmsNO0xkJmh-wpzcv7vYe9IYzxk8"
+      }
+    }
+  }
 }

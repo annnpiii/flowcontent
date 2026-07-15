@@ -1,4 +1,3 @@
-process.env.TZ = 'Asia/Makassar';
 
 const express = require('express');
 const session = require('express-session');
@@ -8,13 +7,14 @@ const multer = require('multer');
 const path = require('path');
 const { query, run, get } = require('./database');
 const cron = require('node-cron');
+const rateLimit = require('express-rate-limit');
 
-// Makassar timestamp helper (uses process.env.TZ)
+// Timestamp helper
 function now() {
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' +
-    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' +
+    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '+08:00';
 }
 
 const app = express();
@@ -37,30 +37,43 @@ const upload = multer({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => { if (req.path.endsWith('.html') || req.path === '/' || req.path === '/sw.js' || req.path === '/manifest.json' || req.path.includes('/js/')) res.set('Cache-Control', 'no-cache, no-store, must-revalidate'); next(); });
-app.use('/css', express.static(path.join(__dirname, 'public', 'css'), { maxAge: '5m', etag: true }));
-app.use('/js', express.static(path.join(__dirname, 'public', 'js'), { maxAge: '5m', etag: true }));
+app.use('/css', express.static(path.join(__dirname, 'public', 'css'), { maxAge: 0, etag: false, lastModified: false }));
+app.use('/js', express.static(path.join(__dirname, 'public', 'js'), { maxAge: 0, etag: false, lastModified: false }));
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.LOGIN_RATE_LIMIT) || 30,
+  message: { error: 'Terlalu banyak percobaan login. Coba lagi 1 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(session({
-  secret: 'contentflow-secret-key-2025',
+  secret: process.env.SESSION_SECRET || 'contentflow-secret-key-2025',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-function requireAuth() {
+function requireAuth(allowedRoles) {
   return (req, res, next) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (allowedRoles && Array.isArray(allowedRoles) && allowedRoles.length > 0) {
+      if (!allowedRoles.includes(req.session.user.role)) {
+        return res.status(403).json({ error: 'Forbidden: insufficient permissions' });
+      }
+    }
     next();
   };
 }
 
 // --- Auth ---
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   const user = get('SELECT * FROM users WHERE username = ?', [username]);
   if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+    return res.status(401).json({ error: 'Username atau password salah!' });
   }
   let perms = user.permissions;
   try { if (typeof perms === 'string') perms = JSON.parse(perms); } catch(e) { perms = null; }
@@ -189,13 +202,14 @@ app.get('/api/contents/:id', requireAuth(), (req, res) => {
 });
 
 app.post('/api/contents', requireAuth(), (req, res) => {
-  const { title, caption, media, platform, posting_date, posting_time, due_date, tags, promo_id, content_url, canva_link } = req.body;
+  const { title, caption, media, platform, posting_date, posting_time, due_date, tags, promo_id, content_url, canva_link, notes, creator_id } = req.body;
   const id = uuidv4();
   const user = req.session.user;
-  run(`INSERT INTO contents (id, title, caption, media, platform, posting_date, posting_time, due_date, status, creator_id, tags, promo_id, content_url, canva_link, brand_id)
-    VALUES (?,?,?,?,?,?,?,?,'draft',?,?,?,?,?,?)`,
-    [id, title, caption || '', JSON.stringify(media || []), platform || 'ig', posting_date || '', posting_time || '10:00', due_date || null, user.id, JSON.stringify(tags || []), promo_id || null, content_url || '', canva_link || '', req.session.brand_id]);
-  run('INSERT INTO activity_logs (id, content_id, user_id, action, details) VALUES (?,?,?,?,?)', [uuidv4(), id, user.id, 'created', 'Content draft created']);
+  const assignedCreator = (user.role === 'admin' && creator_id) ? creator_id : user.id;
+  run(`INSERT INTO contents (id, title, caption, media, platform, posting_date, posting_time, due_date, status, creator_id, tags, promo_id, content_url, canva_link, brand_id, notes)
+    VALUES (?,?,?,?,?,?,?,?,'draft',?,?,?,?,?,?,?)`,
+    [id, title, caption || '', JSON.stringify(media || []), platform || 'ig', posting_date || '', posting_time || '10:00', due_date || null, assignedCreator, JSON.stringify(tags || []), promo_id || null, content_url || '', canva_link || '', req.session.brand_id, notes || '']);
+  run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))', [uuidv4(), id, user.id, 'created', 'Content draft created']);
   res.json({ id, ok: true });
 });
 
@@ -208,7 +222,7 @@ app.put('/api/contents/:id', requireAuth(), (req, res) => {
     [title || existing.title, caption !== undefined ? caption : existing.caption, media ? JSON.stringify(media) : existing.media, platform || existing.platform, posting_date || existing.posting_date, posting_time || existing.posting_time, due_date !== undefined ? due_date : existing.due_date, tags ? JSON.stringify(tags) : existing.tags, promo_id || existing.promo_id, content_url !== undefined ? content_url : existing.content_url, canva_link !== undefined ? canva_link : (existing.canva_link || ''), status || existing.status, req.params.id]);
   run('INSERT INTO content_versions (id, content_id, caption, media, version, edited_by, notes) VALUES (?,?,?,?,?,?,?)',
     [uuidv4(), req.params.id, existing.caption, existing.media, existing.version, user.id, 'Edited by ' + user.display_name]);
-  run('INSERT INTO activity_logs (id, content_id, user_id, action, details) VALUES (?,?,?,?,?)', [uuidv4(), req.params.id, user.id, 'edited', 'Content updated']);
+  run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))', [uuidv4(), req.params.id, user.id, 'edited', 'Content updated']);
   res.json({ ok: true });
 });
 
@@ -220,7 +234,7 @@ app.put('/api/contents/:id/status', requireAuth(), (req, res) => {
     const user = req.session.user;
     run("UPDATE contents SET status=?, feedback=?, updated_at=datetime('now', 'localtime') WHERE id=?",
       [status, feedback || '', req.params.id]);
-    run('INSERT INTO activity_logs (id, content_id, user_id, action, details) VALUES (?,?,?,?,?)', [uuidv4(), req.params.id, user.id, status, feedback ? 'Feedback: ' + feedback : '']);
+    run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))', [uuidv4(), req.params.id, user.id, status, feedback ? 'Feedback: ' + feedback : '']);
     if (status === 'pending_review') {
       const admins = query('SELECT id FROM users WHERE role = ?', ['admin']);
       admins.forEach(a => {
@@ -229,13 +243,11 @@ app.put('/api/contents/:id/status', requireAuth(), (req, res) => {
            `"${existing.title}" minta direview`, now(), existing.brand_id || null]);
       });
     }
-    if (status === 'pending_approval') {
-      const admins = query('SELECT id FROM users WHERE role = ?', ['admin']);
-      admins.forEach(a => {
-        run('INSERT OR IGNORE INTO notifications (id, user_id, content_id, type, message, created_at, brand_id) VALUES (?,?,?,?,?,?,?)',
-          [uuidv4(), a.id, req.params.id, 'pending_approval',
-           `"${existing.title}" minta approval`, now(), existing.brand_id || null]);
-      });
+    if (status === 'approved' && existing.creator_id !== user.id) {
+      run('INSERT INTO notifications (id, user_id, content_id, type, message, created_at, brand_id) VALUES (?,?,?,?,?,?,?)',
+        [uuidv4(), existing.creator_id, req.params.id, 'approved',
+         `Konten "${existing.title}" udah di-approve!`, now(), existing.brand_id || null]);
+      run('DELETE FROM notifications WHERE content_id = ? AND user_id = ?', [req.params.id, user.id]);
     }
     if (status === 'scheduled' && existing.creator_id !== user.id) {
       const notifId = uuidv4();
@@ -263,7 +275,7 @@ app.put('/api/contents/:id/schedule', requireAuth(['admin']), (req, res) => {
   const newCaption = caption !== undefined && caption !== null && caption !== '' ? caption : (existing ? existing.caption : '');
   run("UPDATE contents SET status='scheduled', posting_date=?, posting_time=?, caption=?, approver_id=?, updated_at=datetime('now', 'localtime') WHERE id=?",
     [posting_date, posting_time, newCaption, user.id, req.params.id]);
-  run('INSERT INTO activity_logs (id, content_id, user_id, action, details) VALUES (?,?,?,?,?)',
+  run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))',
     [uuidv4(), req.params.id, user.id, 'scheduled', 'Scheduled on ' + posting_date + ' at ' + posting_time]);
   res.json({ ok: true });
 });
@@ -276,7 +288,7 @@ app.put('/api/contents/:id/date', requireAuth(), (req, res) => {
     return res.status(403).json({ error: 'Cannot move scheduled/posted' });
   }
   run("UPDATE contents SET posting_date=?, updated_at=datetime('now', 'localtime') WHERE id=?", [posting_date, req.params.id]);
-  run('INSERT INTO activity_logs (id, content_id, user_id, action, details) VALUES (?,?,?,?,?)',
+  run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))',
     [uuidv4(), req.params.id, req.session.user.id, 'rescheduled', 'Moved to ' + posting_date]);
   res.json({ ok: true });
 });
@@ -288,7 +300,7 @@ app.delete('/api/contents/bulk', requireAuth(['admin']), (req, res) => {
     if (!ids || !ids.length) return res.status(400).json({ error: 'ids required' });
     const placeholders = ids.map(() => '?').join(',');
     run(`DELETE FROM contents WHERE id IN (${placeholders})`, ids);
-    run(`INSERT INTO activity_logs (id, user_id, action, details, brand_id) VALUES (?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), req.session.user.id, 'bulk_delete', `Menghapus ${ids.length} konten`, req.session.brand_id]);
     res.json({ success: true, deleted: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -405,11 +417,16 @@ app.delete('/api/brands/:id/members/:userId', requireAuth(['admin']), (req, res)
 app.get('/api/dashboard', requireAuth(), (req, res) => {
   const user = req.session.user;
   const bf = brandFilter(req);
-  let pendingApproval, scheduled, drafts;
-  pendingApproval = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['pending_approval', ...bf.params]);
-  scheduled = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['scheduled', ...bf.params]);
-  drafts = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['draft', ...bf.params]);
-  res.json({ pendingApproval: pendingApproval.c, scheduled: scheduled.c, drafts: drafts.c });
+  let drafts = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['draft', ...bf.params]);
+  let pendingReview = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['pending_review', ...bf.params]);
+  let approved = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['approved', ...bf.params]);
+  let revisionRequested = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['revision_requested', ...bf.params]);
+  let scheduled = get(`SELECT COUNT(*) as c FROM contents WHERE status=?${bf.sql}`, ['scheduled', ...bf.params]);
+  let posted = get(`SELECT COUNT(*) as c FROM contents WHERE (status=? OR status=? OR status=?)${bf.sql}`, ['posted', 'done', 'failed', ...bf.params]);
+  res.json({
+    drafts: drafts.c, pendingReview: pendingReview.c, approved: approved.c,
+    revisionRequested: revisionRequested.c, scheduled: scheduled.c, posted: posted.c
+  });
 });
 
 // --- Content Hub ---
@@ -808,17 +825,34 @@ function checkDeadlineNotifications(userId) {
   }
 }
 
-// --- Activity Log ---
+// --- Activity Log (all brands, paginated, filterable by date) ---
 app.get('/api/activities', requireAuth(), (req, res) => {
-  const { content_id } = req.query;
-  const bf = brandFilter(req);
-  let sql = 'SELECT al.*, u.display_name as user_name FROM activity_logs al LEFT JOIN users u ON al.user_id = u.id';
+  const { content_id, date, page } = req.query;
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
+  const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
+
+  let baseSql = 'FROM activity_logs al LEFT JOIN users u ON al.user_id = u.id';
   const params = [];
-  if (content_id) { sql += ' WHERE al.content_id = ?'; params.push(content_id); }
-  if (bf.sql) { sql += (content_id || params.length ? ' AND' : ' WHERE') + bf.sql.replace(' AND', ''); params.push(...bf.params); }
-  sql += ' ORDER BY al.created_at DESC LIMIT 50';
+  const conditions = [];
+
+  if (content_id) { conditions.push('al.content_id = ?'); params.push(content_id); }
+  if (date) { conditions.push("substr(al.created_at, 1, 10) = ?"); params.push(date); }
+
+  const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+  const total = get('SELECT COUNT(*) as c ' + baseSql + where, params).c;
+
+  const sql = 'SELECT al.*, u.display_name as user_name ' + baseSql + where +
+    ' ORDER BY al.created_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
   const logs = query(sql, params);
-  res.json({ logs });
+
+  res.json({
+    logs,
+    total,
+    page: parseInt(page) || 1,
+    limit,
+    totalPages: Math.ceil(total / limit) || 1
+  });
 });
 
 // --- File Upload ---
@@ -853,7 +887,7 @@ app.get('/api/content-plans', requireAuth(), (req, res) => {
 });
 
 // --- Content Plan ↔ Calendar Sync ---
-const STATUS_MAP = { 'Published': 'posted', 'Proses Writing': 'draft', 'Ready for review': 'pending_approval' };
+const STATUS_MAP = { 'Published': 'posted', 'Draft': 'draft', 'Proses Writing': 'draft', 'Ready for review': 'pending_approval', 'Review': 'pending_review', 'Scheduled': 'scheduled' };
 function mapPlatform(contentType) {
   if (!contentType) return 'ig';
   const t = contentType.toLowerCase();
@@ -882,9 +916,9 @@ function syncContentFromPlan(planId, data, userId) {
       [title, caption, platform, postingDate, status, data.upload_link || '', data.canva_link || '', brandId, planId]);
   } else if (postingDate) {
     const id = uuidv4();
-    run(`INSERT INTO contents (id, title, caption, platform, posting_date, posting_time, status, creator_id, brand_id, content_plan_id, tags, content_url, canva_link) VALUES (?,?,?,?,?,?,'draft',?,?,?,?,?,?)`,
-      [id, title, caption, platform, postingDate, '10:00', userId, brandId, planId, '[]', data.upload_link || '', data.canva_link || '']);
-    run(`UPDATE content_plans SET status=? WHERE id=?`, ['draft', planId]);
+    run(`INSERT INTO contents (id, title, caption, platform, posting_date, posting_time, status, creator_id, brand_id, content_plan_id, tags, content_url, canva_link, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now', 'localtime'),datetime('now', 'localtime'))`,
+      [id, title, caption, platform, postingDate, '10:00', status, userId, brandId, planId, '[]', data.upload_link || '', data.canva_link || '']);
+    if (status === 'draft') run(`UPDATE content_plans SET status=? WHERE id=?`, ['Draft', planId]);
   }
 }
 
@@ -893,9 +927,9 @@ app.post('/api/content-plans', requireAuth(), (req, res) => {
     const { status, pic, upload_date, pillar, content_type, title, copywriting, concept, design_ref, publisher, brand, design_result, canva_link, upload_link, page_notes, insight, evaluation, month_group } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
     const id = uuidv4();
-    run(`INSERT INTO content_plans (id, brand_id, status, pic, upload_date, pillar, content_type, title, copywriting, concept, design_ref, publisher, brand, design_result, canva_link, upload_link, page_notes, insight, evaluation, month_group, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    run(`INSERT INTO content_plans (id, brand_id, status, pic, upload_date, pillar, content_type, title, copywriting, concept, design_ref, publisher, brand, design_result, canva_link, upload_link, page_notes, insight, evaluation, month_group, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now', 'localtime'),datetime('now', 'localtime'))`,
       [id, req.session.brand_id, status||'Draft', pic||'', upload_date||'', pillar||'', content_type||'', title, copywriting||'', concept||'', design_ref||'', publisher||'', brand||'', design_result||'', canva_link||'', upload_link||'', page_notes||'', insight||'', evaluation||'', month_group||'', req.session.user.id]);
-    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id) VALUES (?,?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), id, req.session.user.id, 'plan_created', `Membuat rencana "${title}"`, req.session.brand_id]);
     syncContentFromPlan(id, req.body, req.session.user.id);
     res.json({ id });
@@ -907,7 +941,7 @@ app.put('/api/content-plans/:id', requireAuth(), (req, res) => {
     const { status, pic, upload_date, pillar, content_type, title, copywriting, concept, design_ref, publisher, brand, design_result, canva_link, upload_link, page_notes, insight, evaluation, month_group } = req.body;
     run(`UPDATE content_plans SET status=?, pic=?, upload_date=?, pillar=?, content_type=?, title=?, copywriting=?, concept=?, design_ref=?, publisher=?, brand=?, design_result=?, canva_link=?, upload_link=?, page_notes=?, insight=?, evaluation=?, month_group=?, updated_at=datetime('now', 'localtime') WHERE id=?`,
       [status||'Draft', pic||'', upload_date||'', pillar||'', content_type||'', title, copywriting||'', concept||'', design_ref||'', publisher||'', brand||'', design_result||'', canva_link||'', upload_link||'', page_notes||'', insight||'', evaluation||'', month_group||'', req.params.id]);
-    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id) VALUES (?,?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), req.params.id, req.session.user.id, 'plan_updated', `Mengupdate "${title}"`, req.session.brand_id]);
     syncContentFromPlan(req.params.id, req.body, req.session.user.id);
     res.json({ success: true });
@@ -915,20 +949,20 @@ app.put('/api/content-plans/:id', requireAuth(), (req, res) => {
 });
 
 // --- Bulk Plan Actions ---
-app.delete('/api/content-plans/bulk', requireAuth(), (req, res) => {
+app.delete('/api/content-plans/bulk', requireAuth(['admin']), (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids || !ids.length) return res.status(400).json({ error: 'ids required' });
     const placeholders = ids.map(() => '?').join(',');
     run(`DELETE FROM contents WHERE content_plan_id IN (${placeholders})`, ids);
     run(`DELETE FROM content_plans WHERE id IN (${placeholders})`, ids);
-    run(`INSERT INTO activity_logs (id, user_id, action, details, brand_id) VALUES (?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), req.session.user.id, 'bulk_plan_delete', `Menghapus ${ids.length} rencana`, req.session.brand_id]);
     res.json({ success: true, deleted: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.patch('/api/content-plans/bulk/status', requireAuth(), (req, res) => {
+app.patch('/api/content-plans/bulk/status', requireAuth(['admin']), (req, res) => {
   try {
     const { ids, status } = req.body;
     if (!ids || !ids.length || !status) return res.status(400).json({ error: 'ids and status required' });
@@ -938,10 +972,10 @@ app.patch('/api/content-plans/bulk/status', requireAuth(), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/content-plans/:id', requireAuth(), (req, res) => {
+app.delete('/api/content-plans/:id', requireAuth(['admin']), (req, res) => {
   try {
     const plan = get('SELECT title FROM content_plans WHERE id = ?', [req.params.id]);
-    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id) VALUES (?,?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), req.params.id, req.session.user.id, 'plan_deleted', `Menghapus "${plan ? plan.title : 'rencana'}"`, req.session.brand_id]);
     run('DELETE FROM contents WHERE content_plan_id = ?', [req.params.id]);
     run('DELETE FROM content_plans WHERE id = ?', [req.params.id]);
@@ -999,7 +1033,7 @@ app.post('/api/content-plans/import', requireAuth(['admin']), (req, res) => {
       syncContentFromPlan(id, { title, upload_date: vals[idx('tanggal')], status: vals[idx('status')], content_type: vals[idx('tipe')], copywriting: '', upload_link: vals[idx('upload link')] }, req.session.user.id);
       created.push(id);
     }
-    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id) VALUES (?,?,?,?,?,?)`,
+    run(`INSERT INTO activity_logs (id, content_id, user_id, action, details, brand_id, created_at) VALUES (?,?,?,?,?,?,datetime('now', 'localtime'))`,
       [uuidv4(), 'batch', req.session.user.id, 'batch_import', `Import ${created.length} rencana konten`, req.session.brand_id]);
     res.json({ count: created.length, ids: created });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1058,20 +1092,39 @@ app.post('/api/canva-templates/:id/thumbnail', requireAuth(), upload.single('thu
   res.json({ ok: true, thumbnail_url: thumbUrl });
 });
 
+// --- SPA fallback: serve index.html for all unmatched frontend routes ---
+const indexPath = path.join(__dirname, 'public', 'index.html');
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path.startsWith('/icons/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(indexPath);
+});
+
 // Init & Start
 const { getDb } = require('./database');
 
 getDb().then(() => {
+  // Reset all activity logs — start fresh with clean data
+  run('DELETE FROM activity_logs');
+  console.log('[Startup] Activity logs cleared — starting fresh');
+
   // Check deadline notifications every hour
   cron.schedule('0 * * * *', () => {
     const users = query('SELECT id FROM users');
     users.forEach(u => checkDeadlineNotifications(u.id));
   });
+  // Auto-cleanup activity logs older than 7 days (runs daily at 03:00)
+  cron.schedule('0 3 * * *', () => {
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const deleted = run('DELETE FROM activity_logs WHERE substr(created_at, 1, 10) < ?', [cutoff]);
+    if (deleted && deleted.changes) console.log(`[Cleanup] Deleted ${deleted.changes} old activity logs`);
+  });
   // Also run once on startup
   const users = query('SELECT id FROM users');
   users.forEach(u => checkDeadlineNotifications(u.id));
   app.listen(PORT, () => {
-    console.log('ContentFlow running at http://localhost:' + PORT);
+    console.log('ContentFlow v1.1.0 running at http://localhost:' + PORT);
   });
 }).catch(err => {
   console.error('Failed to initialize database:', err);

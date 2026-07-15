@@ -48,13 +48,13 @@ function query(sql, params = []) {
 
 function run(sql, params = []) {
   if (!db) throw new Error('Database not initialized');
-  // Replace SQLite datetime() with JavaScript-generated Makassar timestamp
+  // Replace SQLite datetime() with JavaScript-generated timestamp
   // ONLY for INSERT/UPDATE, not CREATE (which uses DEFAULT)
   if (!/^\s*CREATE/i.test(sql)) {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
-    const ts = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' +
-      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    const ts = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '+08:00';
     sql = sql.replace(/datetime\('now', 'localtime'\)/g, "'" + ts + "'");
   }
   db.run(sql, params);
@@ -203,6 +203,7 @@ function initSchema() {
   try { db.run(`ALTER TABLE canva_templates ADD COLUMN brand_id TEXT REFERENCES brands(id)`); } catch(e) {}
   try { db.run(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT NULL`); } catch(e) {}
   try { db.run(`ALTER TABLE notifications ADD COLUMN brand_id TEXT REFERENCES brands(id)`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN notes TEXT DEFAULT ''`); } catch(e) {}
   // Canva templates
   db.run(`CREATE TABLE IF NOT EXISTS canva_templates (
     id TEXT PRIMARY KEY, brand_id TEXT REFERENCES brands(id),

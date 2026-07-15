@@ -106,3 +106,41 @@
     gap: 8px;
   }
 }
+
+/* ====== DARK MODE LOGIN ====== */
+.dark #loginPage {
+  background: #1a1714;
+}
+.dark #loginPage h1 {
+  color: #f0eae2;
+}
+.dark #loginPage .bg-surface {
+  background: #2a2522;
+  border-color: #3e3530;
+}
+.dark #loginPage input {
+  background: #1c1816;
+  border-color: #3e3530;
+  color: #f0eae2;
+}
+.dark #loginPage input:focus {
+  border-color: var(--accent);
+}
+.dark #loginPage label {
+  color: #e6dfd7;
+}
+.dark #loginPage .text-text-muted {
+  color: #8a7e7a;
+}
+.dark #loginPage .text-text-secondary {
+  color: #b0a6a0;
+}
+
+/* ====== LOGIN SPINNER ====== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

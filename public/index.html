@@ -108,23 +108,34 @@ tailwind.config = {
           <label class="text-label-lg text-text-primary block" for="loginUsername">Username</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xl pointer-events-none">person</span>
-            <input class="w-full pl-10 pr-4 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginUsername" placeholder="Masukin username kamu" type="text">
+            <input class="w-full pl-10 pr-4 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginUsername" placeholder="admin" type="text" autofocus>
           </div>
         </div>
         <div class="space-y-1.5">
           <label class="text-label-lg text-text-primary block" for="loginPassword">Password</label>
           <div class="relative">
             <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xl pointer-events-none">lock</span>
-            <input class="w-full pl-10 pr-4 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginPassword" placeholder="Masukin password kamu" type="password">
+            <input class="w-full pl-10 pr-10 py-2.5 bg-page border border-border-light rounded-input text-body-md text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 transition-all" id="loginPassword" placeholder="password" type="password">
+            <button type="button" id="togglePassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors p-0.5" onclick="togglePasswordVisibility()" tabindex="-1">
+              <span class="material-symbols-outlined text-xl">visibility</span>
+            </button>
           </div>
         </div>
-        <button class="w-full bg-accent text-white py-3 rounded-input text-label-lg hover:bg-accent-hover active:scale-[0.98] transition-all duration-150 shadow-sm" type="submit">
-          <span class="flex items-center justify-center gap-2">
-            Masuk
-            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+        <div id="loginError" class="hidden text-body-sm text-error bg-error-bg border border-error/20 rounded-input px-4 py-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-lg">error</span>
+          <span id="loginErrorText"></span>
+        </div>
+        <button class="w-full bg-accent text-white py-3 rounded-input text-label-lg hover:bg-accent-hover active:scale-[0.98] transition-all duration-150 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100" type="submit" id="loginBtn">
+          <span class="flex items-center justify-center gap-2" id="loginBtnContent">
+            <span id="loginBtnText">Masuk</span>
+            <span class="material-symbols-outlined text-lg" id="loginBtnIcon">arrow_forward</span>
+            <span class="material-symbols-outlined text-lg hidden animate-spin" id="loginBtnSpinner">progress_activity</span>
           </span>
         </button>
       </form>
+      <div class="text-center mt-3">
+        <span class="text-caption text-text-muted">Flowcontent v1.0.0</span>
+      </div>
     </div>
   </main>
 </div>

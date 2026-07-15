@@ -13,6 +13,7 @@ let planPage = 1;
 let planSort = 'upload_date';
 let planStatus = '';
 let planOrder = 'DESC';
+let activityPage = 1;
 
 // ====== UNIVERSAL SORT ======
 let reportSort = 'posting_date';
@@ -47,18 +48,27 @@ async function globalSearch(q) {
     const data = await api('/api/search?q=' + encodeURIComponent(q));
     const el = document.getElementById('searchResults');
     if (!data.results.length) { el.classList.add('hidden'); return; }
-    el.innerHTML = data.results.map(r => {
-      const icons = { plan:'assignment', content:'calendar_month', hub:'photo_library', promo:'campaign' };
-      const pages = { plan:'contentplan', content:'calendar', hub:'hub', promo:'promo' };
-      return `<button class="w-full text-left px-3 py-2.5 hover:bg-surface-hover transition-colors flex items-center gap-2.5 border-b border-border-light last:border-0"
-        onclick="document.getElementById('globalSearch').value='';closeSearch();navigate('${pages[r.type]||'dashboard'}')">
-        <span class="material-symbols-outlined text-lg text-text-muted">${icons[r.type]||'search'}</span>
-        <div class="min-w-0 flex-1">
-          <p class="text-body-md text-text-primary truncate">${r.name}</p>
-          <p class="text-caption text-text-muted">${r.type === 'plan' ? 'Rencana Konten' : r.type === 'content' ? 'Kalender' : r.type === 'hub' ? 'Pusat Konten' : 'Promo'} · ${r.date || ''}</p>
-        </div>
-      </button>`;
-    }).join('');
+    const groups = { plan:[], content:[], hub:[], promo:[] };
+    data.results.forEach(r => { if (groups[r.type]) groups[r.type].push(r); });
+    const labels = { plan:'Rencana Konten', content:'Kalender', hub:'Pusat Konten', promo:'Promo' };
+    const icons = { plan:'assignment', content:'calendar_month', hub:'photo_library', promo:'campaign' };
+    const pages = { plan:'contentplan', content:'calendar', hub:'hub', promo:'promo' };
+    let html = '';
+    for (const [type, items] of Object.entries(groups)) {
+      if (!items.length) continue;
+      html += `<div class="search-category-header">${labels[type]||type}</div>`;
+      items.forEach(r => {
+        html += `<div class="search-result-item"
+          onclick="document.getElementById('globalSearch').value='';closeSearch();navigate('${pages[r.type]||'dashboard'}')">
+          <span class="material-symbols-outlined text-lg" style="color:#b0a6a0">${icons[r.type]||'search'}</span>
+          <div class="min-w-0 flex-1">
+            <div class="text-body-md" style="color:#1a1714">${r.name}</div>
+            <div class="text-caption" style="color:#b0a6a0">${r.date||''}</div>
+          </div>
+        </div>`;
+      });
+    }
+    el.innerHTML = html;
     el.classList.remove('hidden');
   } catch(e) { /* silent */ }
 }
@@ -70,9 +80,38 @@ document.addEventListener('click', function(e) {
 });
 
 // ====== AUTH ======
+function setLoginLoading(loading) {
+  const btn = document.getElementById('loginBtn');
+  const text = document.getElementById('loginBtnText');
+  const icon = document.getElementById('loginBtnIcon');
+  const spinner = document.getElementById('loginBtnSpinner');
+  const error = document.getElementById('loginError');
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) {
+    text.textContent = 'Memproses...';
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    if (error) error.classList.add('hidden');
+  } else {
+    text.textContent = 'Masuk';
+    icon.classList.remove('hidden');
+    spinner.classList.add('hidden');
+  }
+}
+
+function showLoginError(msg) {
+  const error = document.getElementById('loginError');
+  const text = document.getElementById('loginErrorText');
+  if (!error || !text) return;
+  text.textContent = msg;
+  error.classList.remove('hidden');
+}
+
 async function login() {
   const username = document.getElementById('loginUsername').value;
   const password = document.getElementById('loginPassword').value;
+  setLoginLoading(true);
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
@@ -81,21 +120,30 @@ async function login() {
     });
     const data = await res.json();
     if (!res.ok) {
-      openModal('Error', `
-        <div class="empty-state">
-          <div class="empty-state-icon" style="background:#fef2f2;color:#dc2626">
-            <span class="material-symbols-outlined">error</span>
-          </div>
-          <div class="empty-state-title">Login Gagal</div>
-          <div class="empty-state-desc">${data.error || 'Username atau password salah'}</div>
-        </div>
-      `, '<button class="btn btn-secondary" onclick="closeModal()">Coba Lagi</button>');
+      setLoginLoading(false);
+      showLoginError(data.error || 'Username atau password salah');
       return;
     }
     currentUser = data.user;
     showApp();
     navigate('dashboard');
-  } catch (e) { toast('Gagal konek ke server', 'error'); }
+  } catch (e) {
+    setLoginLoading(false);
+    showLoginError('Gagal konek ke server');
+  }
+}
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('loginPassword');
+  const icon = document.getElementById('togglePassword').querySelector('.material-symbols-outlined');
+  if (!input || !icon) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.textContent = 'visibility_off';
+  } else {
+    input.type = 'password';
+    icon.textContent = 'visibility';
+  }
 }
 
 async function logout() {
@@ -223,9 +271,10 @@ async function initBrandSwitcher() {
       const btn = document.createElement('button');
       btn.className = 'brand-option flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-white hover:bg-white/[0.06] transition-all text-sm';
       btn.onclick = () => switchBrand(b.id);
+      const color = b.color || '#f43f5e';
       btn.innerHTML = b.logo_url
         ? `<img src="${b.logo_url}" alt="${b.name}" class="w-6 h-6 rounded object-cover flex-shrink-0"><span class="truncate">${b.name}</span>`
-        : `<div class="w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0" style="background:${b.color || '#f43f5e'}">${b.name.charAt(0).toUpperCase()}</div><span class="truncate">${b.name}</span>`;
+        : `<div class="w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0" style="background:${color}">${b.name.charAt(0).toUpperCase()}</div><span class="truncate">${b.name}</span>`;
       if (b.id === activeBrandId) btn.classList.add('bg-white/[0.06]');
       list.appendChild(btn);
     }
@@ -234,10 +283,7 @@ async function initBrandSwitcher() {
 }
 
 function brandAccentColor(brand) {
-  if (!brand) return '#FF1695';
-  if (brand.name === 'Curabeauty') return '#FF1695';
-  if (brand.name === 'Martabak Kenangan') return '#eab308';
-  return brand.color || '#f43f5e';
+  return brand?.color || '#FF1695';
 }
 
 function setBrandAccent(color) {
@@ -418,38 +464,57 @@ function toast(msg, type = 'success') {
 
 function formatDate(d) {
   if (!d) return '';
-  const dt = new Date(d + 'T00:00:00');
-  return dt.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+  const parts = d.split('-');
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  return parseInt(parts[2]) + ' ' + (months[parseInt(parts[1])-1]||'') + ' ' + parts[0];
 }
 
 function formatDateTime(d) {
   if (!d) return '';
-  const parts = d.split(/[- :]/);
-  // Date object for timezone-aware date formatting
-  const dt = new Date(parts[0], parts[1]-1, parts[2], parts[3]||0, parts[4]||0, parts[5]||0);
-  const date = dt.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Makassar' });
-  // Time comes directly from the SQLite string (already Makassar time)
-  const h = (parts[3]||'00').padStart(2, '0');
-  const m = (parts[4]||'00').padStart(2, '0');
-  return date + ' ' + h + ':' + m;
+  let dt;
+  if (d.includes('T') && d.includes('+')) {
+    dt = new Date(d);
+  } else {
+    const parts = d.split(/[- :]/);
+    dt = new Date(+parts[0], +parts[1]-1, +parts[2], +parts[3]||0, +parts[4]||0, +parts[5]||0);
+  }
+  const date = dt.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+  const time = dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  return date + ' ' + time;
 }
 
 function formatRupiah(n) {
   return 'Rp ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-function statusBadge(status) {
-  const labels = {
-    draft: 'Draf', pending_review: 'Perlu Review', pending_approval: 'Pending Approval',
-    revision_requested: 'Diminta Revisi', scheduled: 'Terjadwal', posted: 'Terposting',
-    failed: 'Gagal', done: 'Selesai', Published: 'Terbit'
+function getContentDisplayStatus(c) {
+  if (c && c.content_url && c.content_url.trim()) return 'terposting';
+  const map = {
+    draft:'draf', pending_review:'review', pending_approval:'approval',
+    approved:'approval', revision_requested:'revisi',
+    scheduled:'terposting', posted:'terposting', done:'terposting',
+    failed:'terposting', Published:'terposting', Draft:'draf'
   };
-  const cls = {
-    draft: 'badge-draft', pending_review: 'badge-pending_review', pending_approval: 'badge-pending_approval',
-    revision_requested: 'badge-revision_requested', scheduled: 'badge-scheduled', posted: 'badge-posted',
-    failed: 'badge-failed', done: 'badge-done', Published: 'badge-done'
+  return (c && c.status) ? (map[c.status] || 'draf') : 'draf';
+}
+
+function statusBadge(s, forcePostedUrl) {
+  if (forcePostedUrl) return '<span class="badge badge-terposting">Terposting</span>';
+  const key = (typeof s === 'object' && s !== null) ? getContentDisplayStatus(s) : mapStatusKey(s);
+  const labels = { draf:'Draf', review:'Review', approval:'Approval', revisi:'Revisi', terposting:'Terposting' };
+  const cls = { draf:'badge-draf', review:'badge-review', approval:'badge-approval', revisi:'badge-revisi', terposting:'badge-terposting' };
+  return `<span class="badge ${cls[key]}">${labels[key]}</span>`;
+}
+
+function mapStatusKey(status) {
+  const map = {
+    draft:'draf', pending_review:'review', pending_approval:'approval',
+    approved:'approval', revision_requested:'revisi',
+    scheduled:'terposting', posted:'terposting', done:'terposting',
+    failed:'terposting', Published:'terposting', Draft:'draf',
+    'Proses Writing':'draf', 'Ready for review':'review', 'Review':'review', 'Scheduled':'terposting'
   };
-  return `<span class="badge ${cls[status] || 'badge-draft'}">${labels[status] || status}</span>`;
+  return map[status] || 'draf';
 }
 
 function platformIcon(platform) {
@@ -468,6 +533,26 @@ function openModal(title, bodyHtml, footerHtml = '') {
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function showSuccessModal(msg, onOk) {
+  const cb = typeof onOk === 'function' ? onOk : function(){};
+  const btnId = 'successOkBtn';
+  openModal('', `
+    <div class="text-center py-6">
+      <div class="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-5">
+        <span class="material-symbols-outlined text-5xl" style="color:#16a34a">check_circle</span>
+      </div>
+      <p class="text-title-md font-semibold text-text-primary">${msg}</p>
+    </div>
+  `, `
+    <button id="${btnId}" class="btn btn-primary min-w-[120px]">OK</button>
+  `);
+  document.getElementById(btnId).addEventListener('click', function handler() {
+    closeModal();
+    this.removeEventListener('click', handler);
+    cb();
+  });
 }
 
 function modalOpenCreateContent() {
@@ -530,7 +615,8 @@ function renderNotifications(notifs) {
 }
 
 async function notifClick(id, type) {
-  navigate('approval');  // Always go to approval page
+  const targets = { pending_review:'approval', pending_approval:'approval', approved:'approval', revision:'calendar', deadline_h1:'calendar', revision_requested:'approval' };
+  navigate(targets[type] || 'approval');
   try {
     await api('/api/notifications/' + id + '/read', { method: 'PUT' });
     loadNotifications();
@@ -575,6 +661,8 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Init dark mode before login screen
+initDarkMode();
 // Check auth on load
 checkAuth();
 
@@ -607,46 +695,60 @@ async function renderDashboard(el) {
           </button>
       </div>
 
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div class="card p-5 card-hoverable">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-label-sm text-text-secondary">Pending Approval</span>
-            <span class="material-symbols-outlined text-text-muted">pending_actions</span>
-          </div>
-          <div class="font-display text-display-md text-accent font-bold">${dash.pendingApproval}</div>
-          <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
-            <span class="material-symbols-outlined text-sm text-success">trending_up</span>
-            Siap direview
-          </div>
-        </div>
-        <div class="card p-5 card-hoverable">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-label-sm text-text-secondary">Terjadwal</span>
-            <span class="material-symbols-outlined text-text-muted">event_available</span>
-          </div>
-          <div class="font-display text-display-md text-text-primary font-bold">${dash.scheduled}</div>
-          <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
-            Jadwal posting
-          </div>
-        </div>
-        <div class="card p-5 card-hoverable">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="card p-5 card-hoverable" style="border-left:3px solid #b0a6a0;">
           <div class="flex items-center justify-between mb-3">
             <span class="text-label-sm text-text-secondary">Draf</span>
-            <span class="material-symbols-outlined text-text-muted">edit_note</span>
+            <span class="material-symbols-outlined" style="color:#b0a6a0">edit_note</span>
           </div>
-          <div class="font-display text-display-md text-text-primary font-bold">${dash.drafts}</div>
+          <div class="font-display text-display-md font-bold" style="color:#1a1714">${dash.drafts}</div>
           <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
+            <span class="material-symbols-outlined text-sm" style="color:#b0a6a0">edit</span>
             Lagi dikerjain
           </div>
         </div>
-        <div class="card p-5 card-hoverable">
+        <div class="card p-5 card-hoverable" style="border-left:3px solid #f59e0b;">
           <div class="flex items-center justify-between mb-3">
-            <span class="text-label-sm text-text-secondary">Selesai</span>
-            <span class="material-symbols-outlined text-text-muted">check_circle</span>
+            <span class="text-label-sm text-text-secondary">Review</span>
+            <span class="material-symbols-outlined" style="color:#f59e0b">rate_review</span>
           </div>
-          <div class="font-display text-display-md text-success font-bold">${dash.scheduled + dash.pendingApproval + dash.drafts}</div>
+          <div class="font-display text-display-md font-bold" style="color:#f59e0b">${dash.pendingReview}</div>
           <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
-            Total konten aktif
+            <span class="material-symbols-outlined text-sm" style="color:#f59e0b">how_to_reg</span>
+            Perlu direview
+          </div>
+        </div>
+        <div class="card p-5 card-hoverable" style="border-left:3px solid var(--accent);">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-label-sm text-text-secondary">Approval</span>
+            <span class="material-symbols-outlined" style="color:var(--accent)">verified</span>
+          </div>
+          <div class="font-display text-display-md font-bold" style="color:var(--accent)">${dash.approved}</div>
+          <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
+            <span class="material-symbols-outlined text-sm" style="color:#16a34a">trending_up</span>
+            Siap diposting
+          </div>
+        </div>
+        <div class="card p-5 card-hoverable" style="border-left:3px solid #dc2626;">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-label-sm text-text-secondary">Revisi</span>
+            <span class="material-symbols-outlined" style="color:#dc2626">edit_note</span>
+          </div>
+          <div class="font-display text-display-md font-bold" style="color:#dc2626">${dash.revisionRequested}</div>
+          <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
+            <span class="material-symbols-outlined text-sm" style="color:#dc2626">edit</span>
+            Butuh diperbaiki
+          </div>
+        </div>
+        <div class="card p-5 card-hoverable" style="border-left:3px solid #16a34a;">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-label-sm text-text-secondary">Terposting</span>
+            <span class="material-symbols-outlined" style="color:#16a34a">check_circle</span>
+          </div>
+          <div class="font-display text-display-md font-bold" style="color:#16a34a">${dash.posted}</div>
+          <div class="mt-2 flex items-center gap-1.5 text-caption text-text-secondary">
+            <span class="material-symbols-outlined text-sm" style="color:#16a34a">checklist</span>
+            Udah tayang
           </div>
         </div>
       </div>
@@ -668,9 +770,9 @@ async function renderDashboard(el) {
                 ${contents.contents.map(c => `
                   <tr class="cursor-pointer" onclick="openContentDetail('${c.id}')">
                     <td class="text-text-secondary text-caption">${formatDate(c.posting_date)}</td>
-                <td class="font-medium">${c.content_plan_id ? '<span class="text-[10px] mr-1" title="Dari Rencana Konten">📋</span>' : ''}${c.title}</td>
+                <td class="font-medium"><span class="td-title" title="${c.title.replace(/"/g,'&quot;')}">${c.content_plan_id ? '<span class="text-[10px] mr-1" title="Dari Rencana Konten">📋</span>' : ''}${c.title}</span></td>
                     <td>${platformIcon(c.platform)}</td>
-                    <td>${statusBadge(c.status)}</td>
+                    <td>${statusBadge(c)}</td>
                     <td class="text-text-secondary text-caption">${c.creator_name || '-'}</td>
                   </tr>
                 `).join('')}
@@ -679,28 +781,99 @@ async function renderDashboard(el) {
           </div>
         </div>
         <div class="card p-5">
-          <h3 class="text-title-md text-text-primary mb-4">Aktivitas</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-title-md text-text-primary">Aktivitas</h3>
+            <div class="flex items-center gap-2">
+              <input type="date" id="activityDate" class="input py-1 text-xs !w-auto" title="Filter tanggal">
+              <button class="btn btn-primary btn-sm text-xs" onclick="searchActivities()" title="Cari berdasarkan tanggal">Cari</button>
+              <button class="btn btn-ghost btn-sm text-xs" onclick="resetActivityFilter()" title="Tampilkan semua">Reset</button>
+            </div>
+          </div>
           <div id="activityFeed" class="space-y-3">
             <div class="space-y-3"><div class="skeleton h-12"></div><div class="skeleton h-12"></div><div class="skeleton h-12"></div></div>
           </div>
+          <div id="activityPagination" class="flex items-center justify-center gap-1 mt-4"></div>
         </div>
       </div>
     `;
-    const act = await api('/api/activities');
-    document.getElementById('activityFeed').innerHTML = act.logs.length
-      ? act.logs.map(a => `
-        <div class="flex gap-3 py-2.5 border-b border-border-light/60 last:border-0">
-          <div class="w-2 h-2 rounded-full bg-accent mt-1.5 flex-shrink-0"></div>
-          <div class="flex-1 min-w-0">
-            <div class="text-body-sm text-text-primary"><strong>${a.user_name || 'System'}</strong> ${a.action}</div>
-            <div class="text-caption text-text-secondary mt-0.5">${formatDateTime(a.created_at)}</div>
-          </div>
-        </div>
-      `).join('')
-      : '<div class="text-body-sm text-text-secondary py-4 text-center">Belum ada aktivitas</div>';
+    document.getElementById('activityDate').value = new Date().toISOString().slice(0, 10);
+    activityPage = 1;
+    await loadActivities();
   } catch(e) {
     el.innerHTML = `<div class="empty-state"><div class="empty-state-icon" style="background:#fef2f2;color:#dc2626"><span class="material-symbols-outlined">error</span></div><div class="empty-state-title">Gagal Muat</div><div class="empty-state-desc">${e.message}</div></div>`;
   }
+}
+
+async function loadActivities() {
+  const dateVal = document.getElementById('activityDate')?.value || '';
+  const params = new URLSearchParams();
+  if (dateVal) params.set('date', dateVal);
+  params.set('page', activityPage);
+  params.set('limit', '10');
+  const act = await api('/api/activities?' + params.toString());
+  const feed = document.getElementById('activityFeed');
+  if (!feed) return;
+  feed.innerHTML = act.logs.length
+    ? act.logs.map(a => `
+      <div class="flex gap-3 py-2.5 border-b border-border-light/60 last:border-0">
+        <div class="w-2 h-2 rounded-full bg-accent mt-1.5 flex-shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="text-body-sm text-text-primary"><strong>${a.user_name || 'System'}</strong> ${a.action}</div>
+          <div class="text-caption text-text-secondary mt-0.5">${formatDateTime(a.created_at)}</div>
+        </div>
+      </div>
+    `).join('')
+    : '<div class="text-body-sm text-text-secondary py-4 text-center">Tidak ada aktivitas' + (dateVal ? ' untuk tanggal ini' : '') + '</div>';
+  renderActivityPagination(act);
+}
+
+function renderActivityPagination(res) {
+  const el = document.getElementById('activityPagination');
+  if (!el) return;
+  if (res.totalPages <= 1) { el.innerHTML = ''; return; }
+
+  let html = '<div class="flex items-center gap-1">';
+
+  // Prev
+  html += `<button class="btn btn-ghost btn-sm text-xs ${res.page <= 1 ? 'opacity-30 pointer-events-none' : ''}" onclick="goActivityPage(${res.page - 1})" title="Sebelumnya">
+    <span class="material-symbols-outlined text-sm">chevron_left</span>
+  </button>`;
+
+  // Page numbers
+  const start = Math.max(1, res.page - 2);
+  const end = Math.min(res.totalPages, res.page + 2);
+  if (start > 1) html += `<span class="text-caption text-text-muted px-1">...</span>`;
+  for (let i = start; i <= end; i++) {
+    html += `<button class="btn btn-sm text-xs ${i === res.page ? 'btn-primary' : 'btn-ghost'}" onclick="goActivityPage(${i})">${i}</button>`;
+  }
+  if (end < res.totalPages) html += `<span class="text-caption text-text-muted px-1">...</span>`;
+
+  // Next
+  html += `<button class="btn btn-ghost btn-sm text-xs ${res.page >= res.totalPages ? 'opacity-30 pointer-events-none' : ''}" onclick="goActivityPage(${res.page + 1})" title="Selanjutnya">
+    <span class="material-symbols-outlined text-sm">chevron_right</span>
+  </button>`;
+
+  // Total count
+  html += `<span class="text-caption text-text-muted ml-2">${res.total} logs</span>`;
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function searchActivities() {
+  activityPage = 1;
+  loadActivities();
+}
+
+function goActivityPage(p) {
+  activityPage = p;
+  loadActivities();
+}
+
+function resetActivityFilter() {
+  const el = document.getElementById('activityDate');
+  if (el) el.value = '';
+  activityPage = 1;
+  loadActivities();
 }
 
 /* ========================================================================
@@ -784,8 +957,8 @@ async function renderContentPlan(el) {
             </thead>
             <tbody id="planTable">
               ${plans.length ? plans.map(p => `
-                <tr class="hover:bg-surface-hover transition-colors">
-                  <td><input type="checkbox" class="row-checkbox" value="${p.id}" onchange="updateBulkBar('planTable')"></td>
+                <tr class="hover:bg-surface-hover transition-colors cursor-pointer" onclick="openPlanDetail('${p.id}')">
+                  <td onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" value="${p.id}" onchange="updateBulkBar('planTable')"></td>
                   <td>${statusBadge(p.status)}</td>
                   <td class="font-medium">${p.pic || '-'}</td>
                   <td class="text-text-secondary">${p.upload_date || '-'}</td>
@@ -794,7 +967,7 @@ async function renderContentPlan(el) {
                   <td class="font-medium max-w-[200px] truncate" title="${p.title}">${p.title}</td>
                   <td class="text-text-secondary">${p.brand || '-'}</td>
                   <td class="text-text-secondary">${p.publisher || '-'}</td>
-                  <td>
+                  <td onclick="event.stopPropagation()">
                     <div class="flex gap-1">
                       <button class="btn btn-ghost btn-sm !px-2" onclick="openPlanDetail('${p.id}')" title="Detail">
                         <span class="material-symbols-outlined text-sm">visibility</span>
@@ -803,7 +976,7 @@ async function renderContentPlan(el) {
                         <span class="material-symbols-outlined text-sm">edit</span>
                       </button>
                       ${currentUser && (currentUser.role === 'admin' || currentUser.role === 'creator') ? `
-                      <button class="btn btn-ghost btn-sm !px-2 text-error hover:text-error" onclick="deletePlan('${p.id}','${p.title.replace(/'/g, "\\'")}')" title="Hapus">
+                      <button class="btn btn-ghost btn-sm !px-2 text-error hover:text-error" onclick="event.stopPropagation();deletePlan('${p.id}','${p.title.replace(/'/g, "\\'")}')" title="Hapus">
                         <span class="material-symbols-outlined text-sm">delete</span>
                       </button>` : ''}
                     </div>
@@ -917,7 +1090,7 @@ async function bulkDeletePlans() {
   if (btn) btn.disabled = true;
   try {
     const res = await api('/api/content-plans/bulk', { method: 'DELETE', body: { ids } });
-    if (res.success) { toast(ids.length + ' rencana berhasil dihapus'); clearBulkSelect(); navigate('contentplan'); }
+    if (res.success) { clearBulkSelect(); showSuccessModal(ids.length + ' rencana berhasil dihapus!', function() { navigate('contentplan'); }); }
     else throw new Error(res.error);
   } catch(e) { toast(e.message, 'error'); }
   if (btn) btn.disabled = false;
@@ -1013,7 +1186,7 @@ async function openCreatePlan() {
       <div class="grid grid-cols-3 gap-4">
         <div class="form-group">
           <label class="form-label">Status</label>
-          <select class="input" id="plan_status"><option value="Draft">Draf</option><option value="Published">Terbit</option></select>
+          <select class="input" id="plan_status"><option value="Draft">Draf</option><option value="Published">Terposting</option></select>
         </div>
         <div class="form-group">
           <label class="form-label">PIC</label>
@@ -1131,8 +1304,7 @@ async function confirmDeletePlan(id) {
   closeModal();
   try {
     await api(`/api/content-plans/${id}`, { method: 'DELETE' });
-    toast('Rencana konten berhasil dihapus!');
-    navigate('contentplan');
+    showSuccessModal('Rencana konten berhasil dihapus!', function() { navigate('contentplan'); });
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -1203,7 +1375,7 @@ async function openEditPlan(id) {
             <select class="input" id="plan_status"><option value="Draft" ${p.status==='Draft'?'selected':''}>Draf</option><option value="Published" ${p.status==='Published'?'selected':''}>Terbit</option></select>
           </div>
           <div class="form-group"><label class="form-label">PIC</label><input class="input" id="plan_pic" value="${p.pic||''}"></div>
-          <div class="form-group"><label class="form-label">Tanggal</label><input class="input" id="plan_date" type="date"></div>
+          <div class="form-group"><label class="form-label">Tanggal</label><input class="input" id="plan_date" type="date" value="${p.upload_date ? p.upload_date.split('/').reverse().join('-') : ''}"></div>
         </div>
         <div class="grid grid-cols-3 gap-4">
           <div class="form-group"><label class="form-label">Pilar</label>
@@ -1240,12 +1412,15 @@ async function updatePlan(id) {
   const title = document.getElementById('plan_title').value;
   if (!title) { toast('Judul wajib diisi', 'error'); return; }
   try {
-    await api('/api/content-plans', {
-      method: 'POST',
+    const dateVal = document.getElementById('plan_date').value;
+    const dateDisplay = dateVal ? new Date(dateVal + 'T00:00:00').toLocaleDateString('id-ID', {day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+    await api('/api/content-plans/' + id, {
+      method: 'PUT',
       body: JSON.stringify({
         id,
         status: document.getElementById('plan_status').value,
         pic: document.getElementById('plan_pic').value,
+        upload_date: dateDisplay,
         pillar: document.getElementById('plan_pillar').value,
         content_type: document.getElementById('plan_type').value,
         title,
@@ -1261,9 +1436,8 @@ async function updatePlan(id) {
         evaluation: document.getElementById('plan_evaluation').value
       })
     });
-    toast('Rencana konten berhasil diupdate!');
     closeModal();
-    navigate('contentplan');
+    showSuccessModal('Rencana konten berhasil diupdate!', function() { navigate('contentplan'); });
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -1314,7 +1488,7 @@ async function renderCalendar(el) {
         ${calendarState.view === 'list' ? `
         <select class="input py-1.5 text-sm !w-auto min-w-[110px]" onchange="filterCalStatus(this.value)">
           <option value="">Semua</option>
-          ${['draft','pending_review','pending_approval','scheduled','posted'].map(s => `<option value="${s}" ${calendarState.status === s ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}
+          ${['draf','review','approval','revisi','terposting'].map(s => `<option value="${s}" ${calendarState.status === s ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}
         </select>` : ''}
           <button class="btn btn-primary btn-sm" onclick="openCreateContent()">
             <span class="material-symbols-outlined text-lg">add</span>
@@ -1373,12 +1547,11 @@ function renderCalMonthHTML(contents) {
   const today = new Date();
 
   const statusColors = {
-    draft: 'bg-[#b0a6a0]/30 text-text-secondary',
-    pending_review: 'bg-warning-bg text-warning',
-    pending_approval: 'bg-accent-subtle text-accent',
-    revision_requested: 'bg-accent-subtle text-accent-hover',
-    scheduled: 'bg-success-bg text-success',
-    posted: 'bg-accent-subtle text-accent-hover'
+    draf: 'bg-[#b0a6a0]/30 text-text-secondary',
+    review: 'bg-warning-bg text-warning',
+    approval: 'bg-accent-subtle text-accent',
+    revisi: 'bg-error/10 text-error',
+    terposting: 'bg-success-bg text-success'
   };
 
   function truncate(str, len) {
@@ -1425,7 +1598,7 @@ function renderCalMonthHTML(contents) {
         ondrop="dropCalEvent(event,'${dateStr}')">
       <div class="cal-day-number">${day}</div>
       ${visible.length ? visible.map(c => `
-        <div class="cal-event ${statusColors[c.status] || 'bg-surface-hover'}" draggable="true"
+        <div class="cal-event ${statusColors[getContentDisplayStatus(c)] || 'bg-surface-hover'}" draggable="true"
              ondragstart="dragCalEvent(event,'${c.id}')"
              onclick="event.stopPropagation();openContentDetail('${c.id}')" title="${c.title}">
           ${truncate(c.title, 18)}
@@ -1459,12 +1632,11 @@ function renderCalWeekHTML(contents) {
   }
 
   const statusColors = {
-    draft: 'bg-[#b0a6a0]/30 text-text-secondary',
-    pending_review: 'bg-warning-bg text-warning',
-    pending_approval: 'bg-accent-subtle text-accent',
-    revision_requested: 'bg-accent-subtle text-accent-hover',
-    scheduled: 'bg-success-bg text-success',
-    posted: 'bg-accent-subtle text-accent-hover'
+    draf: 'bg-[#b0a6a0]/30 text-text-secondary',
+    review: 'bg-warning-bg text-warning',
+    approval: 'bg-accent-subtle text-accent',
+    revisi: 'bg-error/10 text-error',
+    terposting: 'bg-success-bg text-success'
   };
 
   const today = new Date();
@@ -1497,7 +1669,7 @@ function renderCalWeekHTML(contents) {
     html += `<div class="cal-day ${isToday ? 'today' : ''}" onclick="openCalDay('${dateStr}')">
       <div class="cal-day-number">${dt.getDate()}</div>
       ${dayContents.slice(0, 4).map(c => `
-        <div class="cal-event ${statusColors[c.status] || 'bg-surface-hover'}" onclick="event.stopPropagation();openContentDetail('${c.id}')" title="${c.title}">${c.content_plan_id ? '<span class="text-[9px] uppercase tracking-wider opacity-60 mr-1">📋</span>' : ''}${c.title}</div>
+        <div class="cal-event ${statusColors[getContentDisplayStatus(c)] || 'bg-surface-hover'}" onclick="event.stopPropagation();openContentDetail('${c.id}')" title="${c.title}">${c.content_plan_id ? '<span class="text-[9px] uppercase tracking-wider opacity-60 mr-1">📋</span>' : ''}${c.title}</div>
       `).join('')}
       ${dayContents.length > 4 ? `<div class="text-[10px] text-text-muted px-1">+${dayContents.length - 4}</div>` : ''}
     </div>`;
@@ -1507,7 +1679,7 @@ function renderCalWeekHTML(contents) {
 }
 
 function renderCalListHTML(contents) {
-  const filtered = calendarState.status ? contents.filter(c => c.status === calendarState.status) : contents;
+  const filtered = calendarState.status ? contents.filter(c => getContentDisplayStatus(c) === calendarState.status) : contents;
   const sorted = [...filtered].sort((a, b) => (a.posting_date || '').localeCompare(b.posting_date || ''));
   let html = `
     <div class="card overflow-hidden">
@@ -1519,19 +1691,19 @@ function renderCalListHTML(contents) {
           <tbody>
             ${sorted.length ? sorted.map(c => `
               <tr class="cursor-pointer" onclick="openContentDetail('${c.id}')">
-                <td class="text-text-secondary text-caption">${formatDate(c.posting_date)}</td>
-                <td class="font-medium">${c.title}</td>
+                  <td class="text-text-secondary text-caption">${formatDate(c.posting_date)}</td>
+                <td class="font-medium"><span class="td-title" title="${c.title.replace(/"/g,'&quot;')}">${c.title}</span></td>
                 <td>${platformIcon(c.platform)}</td>
-                <td>${statusBadge(c.status)}</td>
-                <td class="text-text-secondary text-caption">${c.creator_name || '-'}</td>
-              </tr>
-            `).join('') : `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">calendar_month</span></div><div class="empty-state-title">Belum ada konten</div><div class="empty-state-desc">Buat konten pertama lo, yuk!</div></div></td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-  return html;
-}
+                 <td>${statusBadge(c)}</td>
+                 <td class="text-text-secondary text-caption">${c.creator_name || '-'}</td>
+               </tr>
+             `).join('') : `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">calendar_month</span></div><div class="empty-state-title">Belum ada konten</div><div class="empty-state-desc">Buat konten pertama lo, yuk!</div></div></td></tr>`}
+           </tbody>
+         </table>
+       </div>
+     </div>`;
+   return html;
+ }
 
 function openCalDay(dateStr) {
   const dayContents = (calContents.contents || calContents || []).filter(c => c.posting_date === dateStr);
@@ -1550,7 +1722,7 @@ function openCalDay(dateStr) {
             </div>
             <div class="flex flex-col items-end gap-2">
               ${platformIcon(c.platform)}
-              ${statusBadge(c.status)}
+              ${statusBadge(c)}
             </div>
           </div>
         </div>
@@ -1628,7 +1800,7 @@ async function createContent() {
         posting_date: document.getElementById('content_date').value,
         caption: document.getElementById('content_caption').value,
         notes: document.getElementById('content_notes').value,
-        media_url: document.getElementById('content_media').value,
+        content_url: document.getElementById('content_media').value,
         canva_link: document.getElementById('content_canva').value,
         creator_id: document.getElementById('content_creator') ? document.getElementById('content_creator').value : currentUser.id
       })
@@ -1641,15 +1813,13 @@ async function createContent() {
 
 async function openContentDetail(id) {
   try {
-    const data = await api('/api/contents');
-    const all = data.contents || data;
-    const c = Array.isArray(all) ? all.find(x => x.id === id) : all;
+    const { content: c } = await api('/api/contents/' + id);
     if (!c) { toast('Konten gak ditemukan', 'error'); return; }
     openModal(c.title, `
       <div class="space-y-4">
         <div class="flex items-center gap-3 flex-wrap">
           ${platformIcon(c.platform)}
-          ${statusBadge(c.status)}
+          ${statusBadge(c)}
         </div>
         ${c.caption ? `<div class="form-group"><span class="form-label">Caption</span><div class="text-body-md bg-surface-hover p-3 rounded-input">${c.caption}</div></div>` : ''}
         <div class="grid grid-cols-2 gap-4">
@@ -1657,7 +1827,7 @@ async function openContentDetail(id) {
           <div class="form-group"><span class="form-label">Pembuat</span><div class="text-body-md font-medium">${c.creator_name || '-'}</div></div>
         </div>
         ${c.notes ? `<div class="form-group"><span class="form-label">Catatan</span><div class="text-body-md">${c.notes}</div></div>` : ''}
-        ${c.media_url ? `<div class="form-group"><span class="form-label">Media</span><a href="${c.media_url}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">open_in_new</span>Lihat Media</a></div>` : ''}
+        ${c.content_url ? `<div class="form-group"><span class="form-label">Media</span><a href="${c.content_url}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">open_in_new</span>Lihat Media</a></div>` : ''}
         ${c.canva_link ? `<div class="form-group"><span class="form-label">Link Canva</span><a href="${c.canva_link}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">open_in_new</span>Buka Canva</a></div>` : ''}
         <div class="grid grid-cols-2 gap-2 text-caption text-text-secondary">
           <span>Dibuat: ${formatDateTime(c.created_at)}</span>
@@ -1686,80 +1856,74 @@ async function submitContent(id) {
    ====== APPROVAL ========================================================
    ======================================================================== */
 async function renderApproval(el) {
-  el.innerHTML = `<div class="space-y-4"><div class="grid grid-cols-2 gap-4"><div class="skeleton h-28"></div><div class="skeleton h-28"></div></div><div class="skeleton h-96 rounded-card"></div></div>`;
+  el.innerHTML = `<div class="space-y-4"><div class="grid grid-cols-2 lg:grid-cols-5 gap-4"><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div></div><div class="skeleton h-96 rounded-card"></div></div>`;
   try {
-    const data = await api('/api/contents');
+    const [data, dash] = await Promise.all([
+      api('/api/contents'),
+      api('/api/dashboard')
+    ]);
     const isAdmin = currentUser.role === 'admin';
-    let items = data.contents || [];
+    let allItems = data.contents || [];
 
+    // Filter for workflow view
+    let items;
     if (isAdmin) {
-      items = items.filter(c => c.status === 'pending_review' || c.status === 'pending_approval');
+      items = allItems.filter(c => c.status === 'pending_review');
     } else {
-      // Creator sees their own submitted content history
-      items = items.filter(c => c.creator_id === currentUser.id &&
-        ['pending_review','pending_approval','revision_requested','approved','scheduled'].includes(c.status));
+      items = allItems.filter(c => c.creator_id === currentUser.id &&
+        ['draft','pending_review','revision_requested','approved','posted','done'].includes(c.status));
     }
 
-    const pendingReview = items.filter(c => c.status === 'pending_review');
-    const pendingApproval = items.filter(c => c.status === 'pending_approval');
-    const revisions = items.filter(c => c.status === 'revision_requested');
-    const approved = items.filter(c => c.status === 'scheduled' || c.status === 'approved');
-
-    // Build stat cards (can't nest backticks inside template literal)
+    // Build stat cards
     var cardsHtml = '';
     if (isAdmin) {
-      cardsHtml = '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-warning-bg flex items-center justify-center"><span class="material-symbols-outlined text-warning">rate_review</span></div><div><div class="text-title-md text-text-primary">Perlu Direview</div><div class="font-display text-display-md text-text-primary font-bold">' + pendingReview.length + '</div></div></div></div><div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center"><span class="material-symbols-outlined text-accent">verified</span></div><div><div class="text-title-md text-text-primary">Pending Approval</div><div class="font-display text-display-md text-accent font-bold">' + pendingApproval.length + '</div></div></div></div>';
+      cardsHtml =
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-[#b0a6a0]/30 flex items-center justify-center"><span class="material-symbols-outlined" style="color:#b0a6a0">edit_note</span></div><div><div class="text-title-md text-text-primary">Draf</div><div class="font-display text-display-md font-bold">' + dash.drafts + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-warning-bg flex items-center justify-center"><span class="material-symbols-outlined text-warning">rate_review</span></div><div><div class="text-title-md text-text-primary">Review</div><div class="font-display text-display-md font-bold">' + dash.pendingReview + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center"><span class="material-symbols-outlined text-accent">verified</span></div><div><div class="text-title-md text-text-primary">Approval</div><div class="font-display text-display-md text-accent font-bold">' + dash.approved + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-error/10 flex items-center justify-center"><span class="material-symbols-outlined text-error">edit_note</span></div><div><div class="text-title-md text-text-primary">Revisi</div><div class="font-display text-display-md text-error font-bold">' + dash.revisionRequested + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-success-bg flex items-center justify-center"><span class="material-symbols-outlined" style="color:#16a34a">check_circle</span></div><div><div class="text-title-md text-text-primary">Terposting</div><div class="font-display text-display-md" style="color:#16a34a;font-weight:700">' + dash.posted + '</div></div></div></div>';
     } else {
-      cardsHtml = '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-warning-bg flex items-center justify-center"><span class="material-symbols-outlined text-warning">rate_review</span></div><div><div class="text-title-md text-text-primary">Direview</div><div class="font-display text-display-md text-text-primary font-bold">' + pendingReview.length + '</div></div></div></div><div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center"><span class="material-symbols-outlined text-accent">verified</span></div><div><div class="text-title-md text-text-primary">Di-approve</div><div class="font-display text-display-md text-accent font-bold">' + approved.length + '</div></div></div></div><div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-error/10 flex items-center justify-center"><span class="material-symbols-outlined text-error">edit_note</span></div><div><div class="text-title-md text-text-primary">Revisi</div><div class="font-display text-display-md text-error font-bold">' + revisions.length + '</div></div></div></div><div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center"><span class="material-symbols-outlined text-accent">event_available</span></div><div><div class="text-title-md text-text-primary">Terjadwal</div><div class="font-display text-display-md text-accent font-bold">' + approved.length + '</div></div></div></div>';
+      const draftCount = items.filter(c => c.status === 'draft').length;
+      const reviewCount = items.filter(c => c.status === 'pending_review').length;
+      const approvalCount = items.filter(c => c.status === 'approved').length;
+      const revisiCount = items.filter(c => c.status === 'revision_requested').length;
+      const postedCount = items.filter(c => c.status === 'posted' || c.status === 'done' || c.content_url);
+      cardsHtml =
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-[#b0a6a0]/30 flex items-center justify-center"><span class="material-symbols-outlined" style="color:#b0a6a0">edit_note</span></div><div><div class="text-title-md text-text-primary">Draf</div><div class="font-display text-display-md font-bold">' + draftCount + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-warning-bg flex items-center justify-center"><span class="material-symbols-outlined text-warning">rate_review</span></div><div><div class="text-title-md text-text-primary">Direview</div><div class="font-display text-display-md font-bold">' + reviewCount + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-accent-subtle flex items-center justify-center"><span class="material-symbols-outlined text-accent">verified</span></div><div><div class="text-title-md text-text-primary">Di-approve</div><div class="font-display text-display-md text-accent font-bold">' + approvalCount + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-error/10 flex items-center justify-center"><span class="material-symbols-outlined text-error">edit_note</span></div><div><div class="text-title-md text-text-primary">Revisi</div><div class="font-display text-display-md text-error font-bold">' + revisiCount + '</div></div></div></div>' +
+        '<div class="card p-5"><div class="flex items-center gap-3 mb-3"><div class="w-10 h-10 rounded-lg bg-success-bg flex items-center justify-center"><span class="material-symbols-outlined" style="color:#16a34a">check_circle</span></div><div><div class="text-title-md text-text-primary">Terposting</div><div class="font-display text-display-md" style="color:#16a34a;font-weight:700">' + postedCount.length + '</div></div></div></div>';
     }
 
     let html = `
       <div class="flex items-center justify-between mb-6">
         <h2 class="font-display text-display-sm text-text-primary tracking-tight">${isAdmin ? 'Workflow Approval' : 'Status Pengajuanku'}</h2>
       </div>
-      <div class="grid grid-cols-2${isAdmin ? '' : ' md:grid-cols-4'} gap-4 mb-6">
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         ${cardsHtml}
       </div>
     `;
 
     if (!items.length) {
-      html += `<div class="card p-12"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">verified</span></div><div class="empty-state-title">${isAdmin ? 'Aman semua' : 'Belum ada pengajuan'}</div><div class="empty-state-desc">${isAdmin ? 'Gak ada konten yang perlu direview atau di-approve' : 'Konten yang lo kirim buat review bakal muncul di sini'}</div></div></div>`;
-    } else {
-      html += `<div class="card overflow-hidden"><div class="table-wrap"><table><thead><tr><th>Judul</th><th>${isAdmin ? 'Pembuat' : 'Status'}</th><th>Tanggal</th><th>Status</th><th>Link Canva</th><th>Aksi</th></tr></thead><tbody>`;
-      items.forEach(c => {
-        html += `
-          <tr>
-            <td class="font-medium">${c.title}</td>
-            <td class="text-text-secondary">${isAdmin ? (c.creator_name || '-') : statusBadge(c.status)}</td>
-            <td class="text-text-secondary text-caption">${formatDate(c.posting_date)}</td>
-            <td>${statusBadge(c.status)}</td>
-            <td>${c.canva_link ? `<a href="${c.canva_link}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1 text-caption"><span class="material-symbols-outlined text-sm">open_in_new</span>Canva</a>` : '<span class="text-caption text-text-muted">—</span>'}</td>
-            <td>
-              <div class="flex gap-1.5 flex-wrap">
-                <button class="btn btn-ghost btn-sm" onclick="openApprovalDetail('${c.id}')">
-                  <span class="material-symbols-outlined text-sm">visibility</span> Lihat
-                </button>
-                ${isAdmin ? `
-                  <button class="btn btn-primary btn-sm" onclick="approveContent('${c.id}','schedule')">
-                    <span class="material-symbols-outlined text-sm">check</span> Setujui
-                  </button>
-                  <button class="btn btn-secondary btn-sm" onclick="requestRevision('${c.id}')">
-                    <span class="material-symbols-outlined text-sm">edit</span> Revisi
-                  </button>
-                ` : ''}
-                ${!isAdmin && c.status === 'revision_requested' ? `
-                  <button class="btn btn-secondary btn-sm" onclick="openRevisionReply('${c.id}')">
-                    <span class="material-symbols-outlined text-sm">edit</span> Perbaiki
-                  </button>
-                ` : ''}
-                <button class="btn btn-ghost btn-sm text-error" onclick="deleteContent('${c.id}','${c.title.replace(/'/g,"\\'")}')">
-                  <span class="material-symbols-outlined text-sm">delete</span>
-                </button>
-              </div>
-            </td>
-          </tr>`;
+      html += `<div class="card p-12"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">verified</span></div><div class="empty-state-title">${isAdmin ? 'Aman semua' : 'Belum ada pengajuan'}</div><div class="empty-state-desc">${isAdmin ? 'Gak ada konten yang perlu direview' : 'Konten yang lo kirim buat review bakal muncul di sini'}</div></div></div>`;
+    } else if (isAdmin) {
+      // Single kanban column: Review
+      html += '<div class="approval-kanban">';
+      html += '<div class="approval-kanban-col"><div class="approval-kanban-col-header" style="background:#f59e0b15;color:#f59e0b"><span>Perlu Direview</span><span>' + items.length + '</span></div>';
+      (items.length ? items : [{ empty: true }]).forEach(c => {
+        if (c.empty) { html += '<div class="approval-kanban-card" style="opacity:0.5"><div class="text-caption" style="color:#8a7e7a;text-align:center;padding:12px 0">Kosong</div></div>'; return; }
+        html += '<div class="approval-kanban-card"><div class="flex items-start justify-between gap-2 mb-2"><div class="text-label-sm font-semibold flex-1 min-w-0"><span class="td-title" title="' + c.title.replace(/"/g,'&quot;') + '" style="max-width:100%">' + c.title + '</span></div>' + platformIcon(c.platform) + '</div>' + (c.caption ? '<div class="text-caption approval-caption-preview">' + c.caption.slice(0, 120) + (c.caption.length > 120 ? '...' : '') + '</div>' : '') + '<div class="text-caption" style="color:#8a7e7a;margin-bottom:6px">' + (c.creator_name || '-') + ' · ' + formatDate(c.posting_date) + '</div><div class="flex gap-1.5 flex-wrap"><button class="btn btn-ghost btn-sm" onclick="openApprovalDetail(\'' + c.id + '\')"><span class="material-symbols-outlined text-sm">visibility</span> Lihat</button><button class="btn btn-primary btn-sm" onclick="approveContent(\'' + c.id + '\')"><span class="material-symbols-outlined text-sm">check</span> Setujui</button><button class="btn btn-secondary btn-sm" onclick="requestRevision(\'' + c.id + '\')"><span class="material-symbols-outlined text-sm">edit</span> Revisi</button><button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteContent(\'' + c.id + '\',\'' + c.title.replace(/'/g,"\\'") + '\')"><span class="material-symbols-outlined text-sm">delete</span></button></div></div>';
       });
-      html += `</tbody></table></div></div>`;
+      html += '</div></div>';
+    } else {
+      // Table layout for creator
+      html += '<div class="card overflow-hidden"><div class="table-wrap"><table><thead><tr><th>Judul</th><th>Status</th><th>Tanggal</th><th>Link Canva</th><th>Aksi</th></tr></thead><tbody>';
+      items.forEach(c => {
+        html += '<tr><td class="font-medium"><span class="td-title" title="' + c.title.replace(/"/g,'&quot;') + '">' + c.title + '</span></td><td>' + statusBadge(c) + '</td><td class="text-text-secondary text-caption">' + formatDate(c.posting_date) + '</td><td>' + (c.canva_link ? '<a href="' + c.canva_link + '" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1 text-caption"><span class="material-symbols-outlined text-sm">open_in_new</span>Canva</a>' : '<span class="text-caption text-text-muted">—</span>') + '</td><td><div class="flex gap-1.5 flex-wrap"><button class="btn btn-ghost btn-sm" onclick="openApprovalDetail(\'' + c.id + '\')"><span class="material-symbols-outlined text-sm">visibility</span> Lihat</button>' + (c.status === 'revision_requested' ? '<button class="btn btn-secondary btn-sm" onclick="openRevisionReply(\'' + c.id + '\')"><span class="material-symbols-outlined text-sm">edit</span> Perbaiki</button>' : '') + '<button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteContent(\'' + c.id + '\',\'' + c.title.replace(/'/g,"\\'") + '\')"><span class="material-symbols-outlined text-sm">delete</span></button></div></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
     }
     el.innerHTML = html;
   } catch(e) {
@@ -1805,15 +1969,13 @@ async function resubmitRevision(id) {
 
 async function openApprovalDetail(id) {
   try {
-    const data = await api('/api/contents');
-    const all = data.contents || data;
-    const c = Array.isArray(all) ? all.find(x => x.id === id) : all;
+    const { content: c } = await api('/api/contents/' + id);
     if (!c) { toast('Konten gak ditemukan', 'error'); return; }
     openModal(c.title, `
       <div class="space-y-4">
         <div class="flex items-center gap-3 flex-wrap">
           ${platformIcon(c.platform)}
-          ${statusBadge(c.status)}
+          ${statusBadge(c)}
         </div>
         ${c.caption ? `<div class="form-group"><span class="form-label">Caption</span><div class="text-body-md bg-surface-hover p-3 rounded-input">${c.caption}</div></div>` : ''}
         <div class="grid grid-cols-2 gap-4">
@@ -1854,20 +2016,43 @@ async function confirmDeleteContent(id) {
   } catch(e) { toast(e.message, 'error'); }
 }
 
-async function approveContent(id, action) {
-  const status = action === 'forward' ? 'pending_approval' : 'scheduled';
+async function approveContent(id) {
   try {
     await api(`/api/contents/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status: 'approved' })
     });
-    if (action === 'schedule') {
-      await api(`/api/contents/${id}/schedule`, {
-        method: 'PUT',
-        body: JSON.stringify({ posting_date: '', posting_time: '10:00' })
-      }).catch(() => {});
-    }
-    toast(action === 'forward' ? 'Disetujui & dilanjutkan!' : 'Disetujui & dijadwalkan!');
+    toast('Konten berhasil di-approve!');
+    navigate('approval');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function openPostContent(id) {
+  const { content: c } = await api('/api/contents/' + id);
+  if (!c) { toast('Konten gak ditemukan', 'error'); return; }
+  openModal('Posting Konten', `
+    <div class="space-y-4">
+      <div class="form-group">
+        <label class="form-label">Link Postingan IG</label>
+        <input class="input" id="postContentUrl" placeholder="https://www.instagram.com/p/..." value="${c.content_url || ''}">
+      </div>
+      <p class="text-caption text-text-secondary">Konten akan diubah statusnya jadi <strong>Terposting</strong>.</p>
+    </div>
+  `, `
+    <button class="btn btn-secondary" onclick="closeModal()">Batal</button>
+    <button class="btn btn-primary" onclick="markAsPosted('${id}')">Tandai Terposting</button>
+  `);
+}
+
+async function markAsPosted(id) {
+  const content_url = document.getElementById('postContentUrl').value;
+  try {
+    await api('/api/contents/' + id, {
+      method: 'PUT',
+      body: JSON.stringify({ content_url, status: 'posted' })
+    });
+    toast('Konten udah ditandai terposting!');
+    closeModal();
     navigate('approval');
   } catch(e) { toast(e.message, 'error'); }
 }
@@ -2549,7 +2734,7 @@ async function exportAsset(id) {
    ====== REPORT & ANALYTICS ==============================================
    ======================================================================== */
 async function renderReport(el) {
-  el.innerHTML = `<div class="space-y-4"><div class="grid grid-cols-4 gap-4"><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div></div><div class="skeleton h-96 rounded-card"></div></div>`;
+  el.innerHTML = `<div class="space-y-4"><div class="grid grid-cols-2 lg:grid-cols-5 gap-4"><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div><div class="skeleton h-28"></div></div><div class="skeleton h-96 rounded-card"></div></div>`;
   try {
     const [dash, contents] = await Promise.all([
       api('/api/dashboard'),
@@ -2562,9 +2747,7 @@ async function renderReport(el) {
       const vb = b.posting_date || '';
       return reportDateOrder === 'ASC' ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-    const filtered = reportStatus ? allContents.filter(c => c.status === reportStatus) : allContents;
-    const posted = filtered.filter(c => c.status === 'posted' || c.status === 'done');
-    const scheduled = filtered.filter(c => c.status === 'scheduled');
+    const filtered = reportStatus ? allContents.filter(c => getContentDisplayStatus(c) === reportStatus) : allContents;
 
     el.innerHTML = `
       <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -2573,7 +2756,7 @@ async function renderReport(el) {
       <div class="card p-3 mb-6 flex items-center gap-2 flex-wrap">
         <select class="input py-1.5 text-sm !w-auto min-w-[130px]" onchange="filterReportStatus(this.value)">
           <option value="">Semua Status</option>
-          ${['draft','pending_review','pending_approval','scheduled','posted'].map(s => `<option value="${s}" ${reportStatus === s ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}
+          ${['draf','review','approval','revisi','terposting'].map(s => `<option value="${s}" ${reportStatus === s ? 'selected' : ''}>${statusLabel(s)}</option>`).join('')}
         </select>
         <div class="flex-1"></div>
         <button class="btn btn-secondary btn-sm flex items-center gap-1.5" onclick="aiAnalyze()" id="aiAnalyzeBtn">
@@ -2583,39 +2766,33 @@ async function renderReport(el) {
           <span class="material-symbols-outlined text-lg">download</span> Export CSV
         </button>
       </div>
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Total Postingan</div><div class="font-display text-display-sm text-text-primary font-bold">${filtered.length}</div></div>
-        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Terposting</div><div class="font-display text-display-sm text-success font-bold">${posted.length}</div></div>
-        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Terjadwal</div><div class="font-display text-display-sm text-text-primary font-bold">${scheduled.length}</div></div>
-        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Pending</div><div class="font-display text-display-sm text-warning font-bold">${filtered.filter(c => c.status === 'pending_approval' || c.status === 'pending_review').length}</div></div>
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Total</div><div class="font-display text-display-sm text-text-primary font-bold">${filtered.length}</div></div>
+        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Terposting</div><div class="font-display text-display-sm text-success font-bold">${filtered.filter(c => getContentDisplayStatus(c) === 'terposting').length}</div></div>
+        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Review</div><div class="font-display text-display-sm text-warning font-bold">${filtered.filter(c => getContentDisplayStatus(c) === 'review').length}</div></div>
+        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Approval</div><div class="font-display text-display-sm text-accent font-bold">${filtered.filter(c => getContentDisplayStatus(c) === 'approval').length}</div></div>
+        <div class="card p-4"><div class="text-label-sm text-text-secondary mb-1">Draf</div><div class="font-display text-display-sm font-bold" style="color:#b0a6a0">${filtered.filter(c => getContentDisplayStatus(c) === 'draf').length}</div></div>
       </div>
       <div id="aiAnalysisResult"></div>
       <div class="card overflow-hidden">
         <div class="px-5 py-4 border-b border-border-light flex items-center justify-between">
           <h3 class="text-title-md text-text-primary">Detail Konten</h3>
-          <div id="reportBulkBar" class="bulk-bar" style="display:none;position:static;margin:0;padding:4px 10px;gap:6px;">
-            <span class="bulk-count" style="font-size:12px;"></span>
-            <button class="btn btn-sm bulk-delete" onclick="bulkDeleteContents()" style="font-size:11px;padding:3px 10px;">
-              <span class="material-symbols-outlined text-sm">delete</span> Hapus
-            </button>
-          </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-            <tr><th style="width:32px"><input type="checkbox" class="row-checkbox" onchange="toggleSelectAll(this, 'reportTable')"></th><th>Tanggal</th><th>Judul</th><th>Platform</th><th>Status</th><th>Pembuat</th></tr>
+            <tr><th>Tanggal</th><th>Judul</th><th>Platform</th><th>Status</th><th>Pembuat</th></tr>
             </thead>
-            <tbody id="reportTable">
+            <tbody>
               ${filtered.length ? filtered.map(c => `
-                <tr>
-                  <td><input type="checkbox" class="row-checkbox" value="${c.id}" onchange="updateBulkBar('reportTable')"></td>
+                <tr class="cursor-pointer" onclick="openContentDetail('${c.id}')">
                   <td class="text-text-secondary text-caption">${formatDate(c.posting_date)}</td>
-                  <td class="font-medium">${c.title}</td>
+                  <td class="font-medium"><span class="td-title" title="${c.title.replace(/"/g,'&quot;')}">${c.title}</span></td>
                   <td>${platformIcon(c.platform)}</td>
-                  <td>${statusBadge(c.status)}</td>
+                  <td>${statusBadge(c)}</td>
                   <td class="text-text-secondary text-caption">${c.creator_name || '-'}</td>
                 </tr>
-              `).join('') : `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">analytics</span></div><div class="empty-state-title">Belum ada data</div><div class="empty-state-desc">Buat konten dulu buat liat laporan</div></div></td></tr>`}
+              `).join('') : `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">analytics</span></div><div class="empty-state-title">Belum ada data</div><div class="empty-state-desc">Buat konten dulu buat liat laporan</div></div></td></tr>`}
             </tbody>
           </table>
         </div>
@@ -2631,9 +2808,9 @@ function filterReportStatus(status) {
   navigate('report');
 }
 
-function statusLabel(s) {
-  const labels = { draft:'Draf', pending_review:'Review', pending_approval:'Approval', scheduled:'Terjadwal', posted:'Terbit' };
-  return labels[s] || s;
+function statusLabel(key) {
+  const labels = { draf:'Draf', review:'Review', approval:'Approval', revisi:'Revisi', terposting:'Terposting' };
+  return labels[key] || key;
 }
 
 async function exportReport() {

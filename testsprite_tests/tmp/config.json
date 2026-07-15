@@ -1,0 +1,20 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:80",
+  "backendAuthType": "basic token",
+  "backendUsername": "admin",
+  "backendPassword": "admin123",
+  "executionArgs": {
+    "projectName": "contentflow",
+    "projectPath": "C:\\Users\\Administrator\\Downloads\\contentflow",
+    "testIds": [],
+    "additionalInstruction": "Run all 35 test cases covering Authentication, Contents, Brands, Users, Content Plans, Promos, Content Hub, Notifications, Trends, Search, Activities, Team, Canva Templates, and Bulk Operations",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-WiNzMUnWFcxLKF9m6aFZ1Wj721oD9FHU85L_FNJ8fesU8X1RznqJRerZUyk6Mjl18KWbnl5EK8eAj6SCcb_jHrRDiaEdkwlCazjl_yuvmsNO0xkJmh-wpzcv7vYe9IYzxk8"
+    }
+  },
+  "serverPort": 52622
+}
