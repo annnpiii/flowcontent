@@ -84,7 +84,7 @@ tailwind.config = {
   }
 }
 </script>
-<link rel="stylesheet" href="/css/style.css?v=19">
+<link rel="stylesheet" href="/css/style.css?v=23">
 </head>
 <body class="bg-page font-body text-text-primary antialiased">
 
@@ -202,6 +202,12 @@ tailwind.config = {
       </button>
 
       <!-- Admin section -->
+      <div id="analyticsAdminWrap" class="hidden">
+        <button class="nav-item flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-text-muted hover:text-white hover:bg-sidebar-hover transition-all text-sm relative" onclick="navigate('analytics')" data-page="analytics">
+          <span class="material-symbols-outlined text-xl">monitoring</span>
+          <span>Analytics</span>
+        </button>
+      </div>
       <div id="adminNav" class="hidden pt-3 mt-2 border-t border-white/[0.06] space-y-0.5">
         <div class="px-3 pb-1">
           <span class="text-[10px] text-white/20 uppercase tracking-[0.15em] font-semibold">Admin</span>
@@ -313,7 +319,7 @@ tailwind.config = {
 <!-- ====== TOAST CONTAINER ====== -->
 <div id="toastContainer" class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-3 pointer-events-none"></div>
 
-<script src="/js/app.js?v=86"></script>
+<script src="/js/app.js?v=90"></script>
 <script>if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js?v=4');
 }</script>

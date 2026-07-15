@@ -202,12 +202,14 @@ function showApp() {
   document.getElementById('topbarUserAvatar').textContent = initial;
   if (currentUser.role === 'admin') {
     document.getElementById('adminNav').classList.remove('hidden');
+    document.getElementById('analyticsAdminWrap')?.classList.remove('hidden');
     ['contentplan','calendar','hub','trends','assetgen','report'].forEach(p => {
       const el = document.querySelector(`.nav-item[data-page="${p}"]`);
       if (el) el.classList.remove('hidden');
     });
   } else {
     document.getElementById('adminNav').classList.add('hidden');
+    document.getElementById('analyticsAdminWrap')?.classList.add('hidden');
     const allNav = ['contentplan','calendar','hub','trends','assetgen','report'];
     if (currentUser.permissions) {
       const perms = typeof currentUser.permissions === 'string' ? JSON.parse(currentUser.permissions) : currentUser.permissions;
@@ -376,7 +378,7 @@ function navigate(page) {
   const titles = {
     dashboard: 'Dashboard', contentplan: 'Rencana Konten', calendar: 'Kalender Konten',
     approval: 'Approval', hub: 'Pusat Konten', promo: 'Promo',
-    trends: 'Pantau Tren', assetgen: 'Buat Desain', report: 'Laporan', users: 'Kelola Tim', brands: 'Brand'
+    trends: 'Pantau Tren', assetgen: 'Buat Desain', report: 'Laporan', analytics: 'Analytics', users: 'Kelola Tim', brands: 'Brand'
   };
   const subtitles = {
     dashboard: 'Semua alur konten dalam satu tempat',
@@ -388,6 +390,7 @@ function navigate(page) {
     trends: 'Tren terbaru dari berbagai platform',
     assetgen: 'Buat desain konten dengan cepat',
     report: 'Analisis performa konten',
+    analytics: 'Performance report seluruh konten & campaign',
     users: 'Atur tim & akses pengguna',
     brands: 'Kelola brand & identitas'
   };
@@ -408,6 +411,7 @@ function navigate(page) {
     else if (page === 'trends') renderTrends(content);
     else if (page === 'assetgen') renderAssetGen(content);
     else if (page === 'report') renderReport(content);
+    else if (page === 'analytics') renderAnalytics(content);
     else if (page === 'brands') renderBrands(content);
     else if (page === 'users') renderUsers(content);
     content.classList.add('content-ready');
@@ -1815,6 +1819,9 @@ async function openContentDetail(id) {
   try {
     const { content: c } = await api('/api/contents/' + id);
     if (!c) { toast('Konten gak ditemukan', 'error'); return; }
+
+    const hasEngagement = c.reach || c.views || c.likes || c.comments || c.shares || c.saves || c.impressions || c.watch_time || c.followers_growth;
+
     openModal(c.title, `
       <div class="space-y-4">
         <div class="flex items-center gap-3 flex-wrap">
@@ -1829,6 +1836,29 @@ async function openContentDetail(id) {
         ${c.notes ? `<div class="form-group"><span class="form-label">Catatan</span><div class="text-body-md">${c.notes}</div></div>` : ''}
         ${c.content_url ? `<div class="form-group"><span class="form-label">Media</span><a href="${c.content_url}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">open_in_new</span>Lihat Media</a></div>` : ''}
         ${c.canva_link ? `<div class="form-group"><span class="form-label">Link Canva</span><a href="${c.canva_link}" target="_blank" class="text-accent hover:underline inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm">open_in_new</span>Buka Canva</a></div>` : ''}
+
+        <!-- Engagement Metrics -->
+        <div class="border-t border-border-light pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-title-sm font-semibold text-text-primary">Engagement Metrics</h4>
+            <button class="btn btn-ghost btn-xs" onclick="editEngagement('${id}')">
+              <span class="material-symbols-outlined text-sm">edit</span> Edit
+            </button>
+          </div>
+          ${hasEngagement ? `
+          <div class="grid grid-cols-3 sm:grid-cols-5 gap-3">
+            ${c.reach !== null && c.reach !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Reach</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.reach)}</div></div>` : ''}
+            ${c.views !== null && c.views !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Views</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.views)}</div></div>` : ''}
+            ${c.likes !== null && c.likes !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Likes</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.likes)}</div></div>` : ''}
+            ${c.comments !== null && c.comments !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Comments</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.comments)}</div></div>` : ''}
+            ${c.shares !== null && c.shares !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Shares</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.shares)}</div></div>` : ''}
+            ${c.saves !== null && c.saves !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Saves</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.saves)}</div></div>` : ''}
+            ${c.impressions !== null && c.impressions !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Impressions</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.impressions)}</div></div>` : ''}
+            ${c.watch_time !== null && c.watch_time !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Watch Time</div><div class="font-display text-display-xs font-bold text-text-primary">${c.watch_time}s</div></div>` : ''}
+            ${c.followers_growth !== null && c.followers_growth !== undefined ? `<div class="bg-surface-hover rounded-card p-3 text-center"><div class="text-caption text-text-secondary">Followers Growth</div><div class="font-display text-display-xs font-bold text-text-primary">${formatNum(c.followers_growth)}</div></div>` : ''}
+          </div>` : `<div class="text-body-sm text-text-secondary py-2">Belum ada data engagement. Klik Edit untuk memasukkan metrics.</div>`}
+        </div>
+
         <div class="grid grid-cols-2 gap-2 text-caption text-text-secondary">
           <span>Dibuat: ${formatDateTime(c.created_at)}</span>
           ${c.updated_at ? `<span>Diupdate: ${formatDateTime(c.updated_at)}</span>` : ''}
@@ -1849,6 +1879,90 @@ async function submitContent(id) {
     });
     toast('Konten dikirim buat review!');
     navigate('calendar');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function editEngagement(id) {
+  try {
+    const { content: c } = await api('/api/contents/' + id);
+    if (!c) { toast('Konten gak ditemukan', 'error'); return; }
+    openModal('Engagement Metrics — ' + c.title, `
+      <form id="engagementForm" onsubmit="return false" class="space-y-4">
+        <p class="text-body-sm text-text-secondary">Masukkan metrics engagement untuk konten ini. Kosongkan field yang tidak diisi.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div class="form-group">
+            <label class="form-label">Reach</label>
+            <input class="input" id="eng_reach" type="number" min="0" placeholder="0" value="${c.reach || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Views</label>
+            <input class="input" id="eng_views" type="number" min="0" placeholder="0" value="${c.views || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Likes</label>
+            <input class="input" id="eng_likes" type="number" min="0" placeholder="0" value="${c.likes || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Comments</label>
+            <input class="input" id="eng_comments" type="number" min="0" placeholder="0" value="${c.comments || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shares</label>
+            <input class="input" id="eng_shares" type="number" min="0" placeholder="0" value="${c.shares || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Saves</label>
+            <input class="input" id="eng_saves" type="number" min="0" placeholder="0" value="${c.saves || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Impressions</label>
+            <input class="input" id="eng_impressions" type="number" min="0" placeholder="0" value="${c.impressions || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Watch Time (detik)</label>
+            <input class="input" id="eng_watch_time" type="number" min="0" placeholder="0" value="${c.watch_time || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Followers Growth</label>
+            <input class="input" id="eng_followers_growth" type="number" placeholder="0" value="${c.followers_growth || ''}">
+          </div>
+        </div>
+      </form>
+    `, `
+      <button class="btn btn-secondary" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" onclick="saveEngagement('${id}')">Simpan</button>
+    `);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function saveEngagement(id) {
+  const reach = document.getElementById('eng_reach').value;
+  const views = document.getElementById('eng_views').value;
+  const likes = document.getElementById('eng_likes').value;
+  const comments = document.getElementById('eng_comments').value;
+  const shares = document.getElementById('eng_shares').value;
+  const saves = document.getElementById('eng_saves').value;
+  const impressions = document.getElementById('eng_impressions').value;
+  const watch_time = document.getElementById('eng_watch_time').value;
+  const followers_growth = document.getElementById('eng_followers_growth').value;
+
+  const body = {};
+  if (reach) body.reach = Number(reach);
+  if (views) body.views = Number(views);
+  if (likes) body.likes = Number(likes);
+  if (comments) body.comments = Number(comments);
+  if (shares) body.shares = Number(shares);
+  if (saves) body.saves = Number(saves);
+  if (impressions) body.impressions = Number(impressions);
+  if (watch_time) body.watch_time = Number(watch_time);
+  if (followers_growth) body.followers_growth = Number(followers_growth);
+
+  try {
+    await api('/api/contents/' + id, { method: 'PUT', body: JSON.stringify(body) });
+    toast('Engagement metrics disimpan!');
+    closeModal();
+    // Re-open detail modal with updated data
+    openContentDetail(id);
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -2942,13 +3056,14 @@ async function renderUsers(el) {
 async function openPermModal(userId, displayName) {
   try {
     const data = await api('/api/users/' + userId + '/permissions');
-    const currentPerms = data.permissions || ['dashboard','contentplan','calendar','hub','report','assetgen','trends'];
+    const currentPerms = data.permissions || ['dashboard','contentplan','calendar','hub','report','analytics','assetgen','trends'];
     const allFeatures = [
       { id: 'dashboard', label: 'Dashboard' },
       { id: 'contentplan', label: 'Rencana Konten' },
       { id: 'calendar', label: 'Kalender Konten' },
       { id: 'hub', label: 'Pusat Konten' },
       { id: 'report', label: 'Laporan' },
+      { id: 'analytics', label: 'Analytics' },
       { id: 'assetgen', label: 'Buat Desain' },
       { id: 'trends', label: 'Pantau Tren' }
     ];
@@ -3033,6 +3148,443 @@ async function deleteUser(id) {
     await api(`/api/users/${id}`, { method: 'DELETE' });
     toast('User berhasil dihapus');
     navigate('users');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ====== ANALYTICS ======
+let analyticsState = { period: 'this_month', date_from: '', date_to: '', platform: '', status: '', campaign: '' };
+
+async function renderAnalytics(el) {
+  el.innerHTML = `
+    <div class="flex flex-col gap-3 sm:gap-4" style="overflow-x:hidden;max-width:100vw">
+      <!-- Filter Bar -->
+      <div class="card p-3 sm:p-4">
+        <div class="flex flex-wrap items-end gap-2 sm:gap-3">
+          <div class="form-group min-w-0 flex-1 sm:min-w-[140px] sm:flex-none">
+            <label class="form-label text-[11px] sm:text-xs">Periode</label>
+            <select class="input text-sm" id="analyticsPeriod" onchange="onAnalyticsPeriodChange()">
+              <option value="today">Hari Ini</option>
+              <option value="this_week">Minggu Ini</option>
+              <option value="this_month" selected>Bulan Ini</option>
+              <option value="this_year">Tahun Ini</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+          <div class="form-group min-w-0 flex-1 sm:min-w-[140px] sm:flex-none" id="analyticsDateFromWrap" style="display:none">
+            <label class="form-label text-[11px] sm:text-xs">Dari</label>
+            <input class="input text-sm" type="date" id="analyticsDateFrom">
+          </div>
+          <div class="form-group min-w-0 flex-1 sm:min-w-[140px] sm:flex-none" id="analyticsDateToWrap" style="display:none">
+            <label class="form-label text-[11px] sm:text-xs">Sampai</label>
+            <input class="input text-sm" type="date" id="analyticsDateTo">
+          </div>
+          <div class="form-group min-w-0 flex-1 sm:min-w-[130px] sm:flex-none">
+            <label class="form-label text-[11px] sm:text-xs">Platform</label>
+            <select class="input text-sm" id="analyticsPlatform" onchange="applyAnalyticsFilter()">
+              <option value="">Semua</option>
+              <option value="ig">IG</option>
+              <option value="tiktok">TikTok</option>
+              <option value="fb">FB</option>
+              <option value="yt">YT</option>
+              <option value="threads">Threads</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </div>
+          <div class="form-group min-w-0 flex-1 sm:min-w-[120px] sm:flex-none">
+            <label class="form-label text-[11px] sm:text-xs">Status</label>
+            <select class="input text-sm" id="analyticsStatus" onchange="applyAnalyticsFilter()">
+              <option value="">Semua</option>
+              <option value="posted">Published</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="draft">Draft</option>
+            </select>
+          </div>
+          <div class="form-group min-w-0 flex-1 sm:min-w-[130px] sm:flex-none">
+            <label class="form-label text-[11px] sm:text-xs">Campaign</label>
+            <input class="input text-sm" id="analyticsCampaign" placeholder="Cari" onchange="applyAnalyticsFilter()">
+          </div>
+          <div class="flex items-end gap-1 sm:gap-2 w-full sm:w-auto">
+            <button class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none" onclick="applyAnalyticsFilter()">Terapkan</button>
+            <button class="btn btn-ghost btn-xs sm:btn-sm flex-1 sm:flex-none" onclick="resetAnalyticsFilter()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sync Row -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div></div>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <span id="igLastSync" class="text-caption text-text-secondary text-xs"></span>
+          <button class="btn btn-primary btn-xs sm:btn-sm" id="syncIgBtn" onclick="syncFromIG()">
+            <span class="material-symbols-outlined text-sm">sync</span> Sync from IG
+          </button>
+          <button class="btn btn-secondary btn-xs sm:btn-sm" id="syncTtBtn" onclick="syncFromTikTok()">
+            <span class="material-symbols-outlined text-sm">sync</span> Sync from TT
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div id="analyticsKpi" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        ${'12345'.split('').map(() => '<div class="card p-4"><div class="skeleton h-5 w-20 mb-2"></div><div class="skeleton h-8 w-28"></div></div>').join('')}
+      </div>
+
+      <!-- Platform Performance -->
+      <div id="analyticsPlatforms" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+        <div class="card p-6 col-span-full"><div class="skeleton h-6 w-48"></div></div>
+      </div>
+
+      <!-- Top & Bottom Content -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        <div class="card overflow-hidden" id="analyticsTopContent"><div class="p-4 sm:p-5"><div class="skeleton h-6 w-40"></div></div></div>
+        <div class="card overflow-hidden" id="analyticsBottomContent"><div class="p-4 sm:p-5"><div class="skeleton h-6 w-44"></div></div></div>
+      </div>
+    </div>
+  `;
+  applyAnalyticsFilter();
+  checkLastSync();
+}
+
+function onAnalyticsPeriodChange() {
+  const val = document.getElementById('analyticsPeriod').value;
+  const wrap = document.getElementById('analyticsDateFromWrap');
+  const from = document.getElementById('analyticsDateFrom');
+  const to = document.getElementById('analyticsDateTo');
+  if (val === 'custom') {
+    wrap.style.display = '';
+    document.getElementById('analyticsDateToWrap').style.display = '';
+  } else {
+    wrap.style.display = 'none';
+    document.getElementById('analyticsDateToWrap').style.display = 'none';
+    from.value = ''; to.value = '';
+  }
+  applyAnalyticsFilter();
+}
+
+async function applyAnalyticsFilter() {
+  const period = document.getElementById('analyticsPeriod').value;
+  let date_from = document.getElementById('analyticsDateFrom').value;
+  let date_to = document.getElementById('analyticsDateTo').value;
+  const now = new Date();
+
+  if (period !== 'custom') {
+    const pad = n => String(n).padStart(2, '0');
+    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    if (period === 'today') {
+      date_from = date_to = y + '-' + pad(m+1) + '-' + pad(d);
+    } else if (period === 'this_week') {
+      const start = new Date(now); start.setDate(d - now.getDay());
+      date_from = start.getFullYear() + '-' + pad(start.getMonth()+1) + '-' + pad(start.getDate());
+      date_to = y + '-' + pad(m+1) + '-' + pad(d);
+    } else if (period === 'this_month') {
+      date_from = y + '-' + pad(m+1) + '-01';
+      date_to = y + '-' + pad(m+1) + '-' + pad(new Date(y, m+1, 0).getDate());
+    } else if (period === 'this_year') {
+      date_from = y + '-01-01';
+      date_to = y + '-12-31';
+    }
+  }
+
+  const platform = document.getElementById('analyticsPlatform').value;
+  const status = document.getElementById('analyticsStatus').value;
+  const campaign = document.getElementById('analyticsCampaign').value;
+
+  const params = new URLSearchParams();
+  if (date_from) params.set('date_from', date_from);
+  if (date_to) params.set('date_to', date_to);
+  if (platform) params.set('platform', platform);
+  if (status) params.set('status', status);
+  if (campaign) params.set('campaign', campaign);
+
+  try {
+    const data = await api('/api/analytics?' + params.toString());
+
+    // KPI Cards
+    const kpi = data.kpi;
+    const kpiEl = document.getElementById('analyticsKpi');
+    if (kpiEl) {
+      const kpiConfig = [
+        { icon: 'article', label: 'Total Content', value: kpi.totalContent, color: '#6366f1' },
+        { icon: 'visibility', label: 'Total Reach', value: formatNum(kpi.totalReach), color: '#16a34a' },
+        { icon: 'play_circle', label: 'Total Views', value: formatNum(kpi.totalViews), color: '#0ea5e9' },
+        { icon: 'ads_click', label: 'Total Impressions', value: formatNum(kpi.totalImpressions), color: '#f59e0b' },
+        { icon: 'thumb_up', label: 'Total Engagement', value: formatNum(kpi.totalEngagement), color: '#ec4899' },
+        { icon: 'trending_up', label: 'Engagement Rate', value: kpi.engagementRate + '%', color: '#10b981' },
+        { icon: 'person_add', label: 'Followers Growth', value: formatNum(kpi.followersGrowth), color: '#8b5cf6' },
+        { icon: 'campaign', label: 'Total Campaign', value: kpi.totalCampaign, color: '#f97316' },
+        { icon: 'analytics', label: 'Avg Reach/Content', value: formatNum(kpi.avgReachPerContent), color: '#06b6d4' },
+      ];
+      kpiEl.innerHTML = kpiConfig.map(k => `
+        <div class="card p-4 card-hoverable">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="material-symbols-outlined text-lg" style="color:${k.color}">${k.icon}</span>
+            <span class="text-caption text-text-secondary">${k.label}</span>
+          </div>
+          <div class="font-display text-display-sm font-bold text-text-primary">${k.value}</div>
+        </div>
+      `).join('');
+    }
+
+    // Platform Cards
+    const platEl = document.getElementById('analyticsPlatforms');
+    if (platEl) {
+      const icons = { ig:'photo_camera', tiktok:'music_note', fb:'facebook', yt:'smart_display', threads:'forum', linkedin:'work' };
+      const names = { ig:'Instagram', tiktok:'TikTok', fb:'Facebook', yt:'YouTube', threads:'Threads', linkedin:'LinkedIn' };
+      platEl.innerHTML = data.platforms.length
+        ? data.platforms.map(p => `
+          <div class="card p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="material-symbols-outlined text-xl text-accent">${icons[p.platform] || 'share'}</span>
+              <h4 class="text-title-md font-semibold text-text-primary">${names[p.platform] || p.platform}</h4>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div><span class="text-caption text-text-secondary">Total Post</span><div class="font-semibold text-text-primary">${p.totalPost}</div></div>
+              <div><span class="text-caption text-text-secondary">Reach</span><div class="font-semibold text-text-primary">${formatNum(p.reach)}</div></div>
+              <div><span class="text-caption text-text-secondary">Views</span><div class="font-semibold text-text-primary">${formatNum(p.views)}</div></div>
+              <div><span class="text-caption text-text-secondary">Likes</span><div class="font-semibold text-text-primary">${formatNum(p.likes)}</div></div>
+              <div><span class="text-caption text-text-secondary">Comments</span><div class="font-semibold text-text-primary">${formatNum(p.comments)}</div></div>
+              <div><span class="text-caption text-text-secondary">Shares</span><div class="font-semibold text-text-primary">${formatNum(p.shares)}</div></div>
+              <div><span class="text-caption text-text-secondary">Saves</span><div class="font-semibold text-text-primary">${formatNum(p.saves)}</div></div>
+              <div><span class="text-caption text-text-secondary">Eng. Rate</span><div class="font-semibold text-text-primary">${p.engagementRate}%</div></div>
+            </div>
+          </div>
+        `).join('')
+        : '<div class="card p-12 col-span-full"><div class="empty-state"><div class="empty-state-icon"><span class="material-symbols-outlined">bar_chart</span></div><div class="empty-state-title">Belum ada data platform</div><div class="empty-state-desc">Isi metrics engagement di konten untuk melihat performa per platform</div></div></div>';
+    }
+
+    // Top Content
+    renderAnalyticsTable('analyticsTopContent', 'Top Performing Content', data.topContent, true);
+    // Bottom Content
+    renderAnalyticsTable('analyticsBottomContent', 'Lowest Performing Content', data.bottomContent, false);
+
+  } catch(e) {
+    const feed = document.getElementById('analyticsKpi');
+    if (feed) feed.innerHTML = `<div class="card p-12 col-span-full"><div class="empty-state"><div class="empty-state-icon" style="background:#fef2f2;color:#dc2626"><span class="material-symbols-outlined">error</span></div><div class="empty-state-title">Gagal Muat</div><div class="empty-state-desc">${e.message}</div></div></div>`;
+  }
+}
+
+function renderAnalyticsTable(containerId, title, items, isTop) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = `
+    <div class="p-4 sm:p-5 border-b border-border-light">
+      <h3 class="text-title-sm sm:text-title-md text-text-primary">${title}</h3>
+    </div>
+    ${items.length
+      ? `<div class="table-wrap"><table>
+        <thead>
+          <tr>
+            <th class="min-w-[120px] sm:min-w-0">Judul</th>
+            <th>Platform</th>
+            <th>Campaign</th>
+            <th>Reach</th>
+            <th>Views</th>
+            <th>Likes</th>
+            <th>Comments</th>
+            <th>Eng. Rate</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(c => {
+            const eng = c.likes + c.comments + c.shares + c.saves;
+            const er = c.reach > 0 ? (eng / c.reach * 100).toFixed(2) : 0;
+            return `<tr>
+              <td class="font-medium whitespace-normal">${c.title}</td>
+              <td class="text-caption">${c.platform || '-'}</td>
+              <td class="text-caption">${c.campaign || '-'}</td>
+              <td class="whitespace-nowrap">${formatNum(c.reach)}</td>
+              <td class="whitespace-nowrap">${formatNum(c.views)}</td>
+              <td class="whitespace-nowrap">${formatNum(c.likes)}</td>
+              <td class="whitespace-nowrap">${formatNum(c.comments)}</td>
+              <td class="whitespace-nowrap">${er}%</td>
+              <td><button class="btn btn-ghost btn-xs" onclick="openContentDetail('${c.id}')">Detail</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>`
+      : '<div class="p-8 text-center text-body-sm text-text-secondary">Belum ada data konten' + (isTop ? ' dengan engagement' : '') + '</div>'
+    }
+  `;
+}
+
+function resetAnalyticsFilter() {
+  document.getElementById('analyticsPeriod').value = 'this_month';
+  document.getElementById('analyticsPlatform').value = '';
+  document.getElementById('analyticsStatus').value = '';
+  document.getElementById('analyticsCampaign').value = '';
+  document.getElementById('analyticsDateFrom').value = '';
+  document.getElementById('analyticsDateTo').value = '';
+  document.getElementById('analyticsDateFromWrap').style.display = 'none';
+  document.getElementById('analyticsDateToWrap').style.display = 'none';
+  applyAnalyticsFilter();
+}
+
+function formatNum(n) {
+  if (!n && n !== 0) return '0';
+  n = Number(n);
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'jt';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'rb';
+  return n.toLocaleString('id-ID');
+}
+
+async function syncFromIG() {
+  const btn = document.getElementById('syncIgBtn');
+  if (!btn) return;
+  // Check if configured first
+  try {
+    const status = await api('/api/ig/status');
+    if (!status.configured) { openIgSetup(); return; }
+  } catch(e) { /* will show error below */ }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">sync</span> Syncing...';
+  try {
+    const res = await api('/api/analytics/sync-ig', { method: 'POST' });
+    toast(`Sync IG selesai! ${res.synced} konten diupdate, ${res.failed} gagal, ${res.unmatched} gak cocok`);
+    applyAnalyticsFilter();
+    checkLastSync();
+  } catch(e) {
+    toast('Sync IG gagal: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm">sync</span> Sync from IG';
+  }
+}
+
+async function syncFromTikTok() {
+  const btn = document.getElementById('syncTtBtn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">sync</span> Syncing TT...';
+  try {
+    const res = await api('/api/analytics/sync-tiktok', { method: 'POST' });
+    toast(`Sync TikTok selesai! ${res.synced} konten diupdate, ${res.failed} gagal, ${res.unmatched} gak cocok`);
+    applyAnalyticsFilter();
+    checkLastSync();
+  } catch(e) {
+    toast('Sync TikTok gagal: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm">sync</span> Sync from TT';
+  }
+}
+
+async function checkLastSync() {
+  try {
+    const res = await api('/api/analytics/last-sync');
+    const el = document.getElementById('igLastSync');
+    if (el && res.last_sync) el.textContent = 'Last sync: ' + formatDateTime(res.last_sync);
+  } catch(e) { /* ignore */ }
+}
+
+async function openIgSetup() {
+  let status;
+  try { status = await api('/api/ig/status'); } catch(e) { status = { configured: false, hasApiKey: false, hasConnectedAccount: false, hasEntityId: false }; }
+  const hasApiKey = status.hasApiKey;
+  const hasAccount = status.hasConnectedAccount;
+  const hasEntityId = status.hasEntityId;
+
+  openModal('Setup Instagram Sync', `
+    <div class="space-y-6">
+      <div class="flex items-center gap-3 p-4 rounded-card bg-accent-subtle/30 border border-accent/20">
+        <span class="material-symbols-outlined text-accent">info</span>
+        <p class="text-body-sm text-text-primary">Konekin IG Business/Creator lo ke ContentFlow biar engagement metrics otomatis tersync.</p>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Step 1 -->
+        <div class="card p-4 ${hasApiKey ? 'border-success/30 bg-success-bg/10' : ''}">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full ${hasApiKey ? 'bg-success-bg text-success' : 'bg-accent-subtle text-accent'} flex items-center justify-center text-label-sm font-bold flex-shrink-0">${hasApiKey ? '✓' : '1'}</div>
+            <div class="flex-1">
+              <h4 class="text-title-sm font-semibold text-text-primary mb-1">Bikin akun Composio</h4>
+              <p class="text-body-sm text-text-secondary mb-2">Daftar gratis di <a href="https://composio.dev" target="_blank" class="text-accent hover:underline">composio.dev</a>, masuk dashboard, dan copy <strong>API Key</strong> dari Settings → API Keys.</p>
+              ${hasApiKey ? '<div class="text-body-sm text-success font-medium mt-1">API Key sudah terisi ✓</div>' : `
+              <div class="flex items-center gap-2 mt-2">
+                <input class="input flex-1" id="setupApiKey" type="password" placeholder="Paste API Key di sini...">
+                <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Simpan</button>
+              </div>`}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="card p-4 ${hasAccount ? 'border-success/30 bg-success-bg/10' : ''}">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full ${hasAccount ? 'bg-success-bg text-success' : 'bg-accent-subtle text-accent'} flex items-center justify-center text-label-sm font-bold flex-shrink-0">${hasAccount ? '✓' : '2'}</div>
+            <div class="flex-1">
+              <h4 class="text-title-sm font-semibold text-text-primary mb-1">Hubungkan Instagram</h4>
+              <p class="text-body-sm text-text-secondary mb-2">Di dashboard Composio, buka <strong>Apps → Instagram → Connect</strong>. Login ke IG Business/Creator lo, authorize, lalu copy <strong>Connected Account ID</strong>.</p>
+              ${hasAccount ? '<div class="text-body-sm text-success font-medium mt-1">Instagram sudah terhubung ✓</div>' : `
+              <div class="flex items-center gap-2 mt-2">
+                <input class="input flex-1" id="setupAccountId" type="text" placeholder="Paste Connected Account ID...">
+                <button class="btn btn-primary btn-sm" onclick="saveIgAccountId()">Simpan</button>
+              </div>`}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2.5: Entity ID -->
+        <div class="card p-4 ${hasEntityId ? 'border-success/30 bg-success-bg/10' : ''}">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full ${hasEntityId ? 'bg-success-bg text-success' : 'bg-accent-subtle text-accent'} flex items-center justify-center text-label-sm font-bold flex-shrink-0">${hasEntityId ? '✓' : ''}</div>
+            <div class="flex-1">
+              <h4 class="text-title-sm font-semibold text-text-primary mb-1">Entity ID</h4>
+              <p class="text-body-sm text-text-secondary mb-2">Di dashboard Composio, buka <strong>Settings → Entity</strong>. Copy <strong>Entity ID</strong> (contoh: pg-test-xxxx).</p>
+              ${hasEntityId ? '<div class="text-body-sm text-success font-medium mt-1">Entity ID sudah terisi ✓</div>' : `
+              <div class="flex items-center gap-2 mt-2">
+                <input class="input flex-1" id="setupEntityId" type="text" placeholder="Paste Entity ID...">
+                <button class="btn btn-primary btn-sm" onclick="saveEntityId()">Simpan</button>
+              </div>`}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="card p-4 ${hasApiKey && hasAccount && hasEntityId ? 'border-success/30 bg-success-bg/10' : 'opacity-50'}"}>
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full ${hasApiKey && hasAccount && hasEntityId ? 'bg-success-bg text-success' : 'bg-[#b0a6a0]/30 text-text-muted'} flex items-center justify-center text-label-sm font-bold flex-shrink-0">${hasApiKey && hasAccount && hasEntityId ? '✓' : '3'}</div>
+            <div class="flex-1">
+              <h4 class="text-title-sm font-semibold text-text-primary mb-1">Sync Sekarang!</h4>
+              <p class="text-body-sm text-text-secondary mb-2">Klik tombol Sync dari halaman Analytics buat narik data engagement dari IG.</p>
+              <button class="btn btn-primary btn-sm" onclick="closeModal();syncFromIG()" ${!hasApiKey || !hasAccount || !hasEntityId ? 'disabled' : ''}>Sync Sekarang</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-secondary" onclick="closeModal()">Tutup</button>
+  `);
+}
+
+async function saveApiKey() {
+  const val = document.getElementById('setupApiKey')?.value;
+  if (!val) { toast('Masukkan API Key', 'error'); return; }
+  try {
+    await api('/api/settings/COMPOSIO_API_KEY', { method: 'PUT', body: JSON.stringify({ value: val }) });
+    toast('API Key tersimpan!');
+    openIgSetup(); // refresh modal
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function saveIgAccountId() {
+  const val = document.getElementById('setupAccountId')?.value;
+  if (!val) { toast('Masukkan Connected Account ID', 'error'); return; }
+  try {
+    await api('/api/settings/IG_CONNECTED_ACCOUNT_ID', { method: 'PUT', body: JSON.stringify({ value: val }) });
+    toast('Connected Account ID tersimpan!');
+    openIgSetup(); // refresh modal
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function saveEntityId() {
+  const val = document.getElementById('setupEntityId')?.value;
+  if (!val) { toast('Masukkan Entity ID', 'error'); return; }
+  try {
+    await api('/api/settings/COMPOSIO_ENTITY_ID', { method: 'PUT', body: JSON.stringify({ value: val }) });
+    toast('Entity ID tersimpan!');
+    openIgSetup();
   } catch(e) { toast(e.message, 'error'); }
 }
 

@@ -204,6 +204,20 @@ function initSchema() {
   try { db.run(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT NULL`); } catch(e) {}
   try { db.run(`ALTER TABLE notifications ADD COLUMN brand_id TEXT REFERENCES brands(id)`); } catch(e) {}
   try { db.run(`ALTER TABLE contents ADD COLUMN notes TEXT DEFAULT ''`); } catch(e) {}
+  // Analytics metrics
+  try { db.run(`ALTER TABLE contents ADD COLUMN reach INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN views INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN likes INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN comments INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN shares INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN saves INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN impressions INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN watch_time INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN subscribers_gained INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN followers_growth INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN campaign TEXT DEFAULT ''`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN ig_media_id TEXT DEFAULT ''`); } catch(e) {}
+  try { db.run(`ALTER TABLE contents ADD COLUMN last_sync TEXT DEFAULT ''`); } catch(e) {}
   // Canva templates
   db.run(`CREATE TABLE IF NOT EXISTS canva_templates (
     id TEXT PRIMARY KEY, brand_id TEXT REFERENCES brands(id),
@@ -301,6 +315,13 @@ function initSchema() {
       exported INTEGER DEFAULT 0,
       created_by TEXT,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
   // Seed templates if empty

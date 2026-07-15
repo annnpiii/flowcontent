@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const { Composio } = require('@composio/core');
 const { query, run, get } = require('./database');
 const cron = require('node-cron');
 const rateLimit = require('express-rate-limit');
@@ -217,9 +219,9 @@ app.put('/api/contents/:id', requireAuth(), (req, res) => {
   const existing = get('SELECT * FROM contents WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const user = req.session.user;
-  const { title, caption, media, platform, posting_date, posting_time, due_date, tags, promo_id, status, content_url, canva_link } = req.body;
-  run(`UPDATE contents SET title=?, caption=?, media=?, platform=?, posting_date=?, posting_time=?, due_date=?, tags=?, promo_id=?, content_url=?, canva_link=?, status=?, updated_at=datetime('now', 'localtime'), version=version+1 WHERE id=?`,
-    [title || existing.title, caption !== undefined ? caption : existing.caption, media ? JSON.stringify(media) : existing.media, platform || existing.platform, posting_date || existing.posting_date, posting_time || existing.posting_time, due_date !== undefined ? due_date : existing.due_date, tags ? JSON.stringify(tags) : existing.tags, promo_id || existing.promo_id, content_url !== undefined ? content_url : existing.content_url, canva_link !== undefined ? canva_link : (existing.canva_link || ''), status || existing.status, req.params.id]);
+  const { title, caption, media, platform, posting_date, posting_time, due_date, tags, promo_id, status, content_url, canva_link, reach, views, likes, comments, shares, saves, impressions, watch_time, followers_growth } = req.body;
+  run(`UPDATE contents SET title=?, caption=?, media=?, platform=?, posting_date=?, posting_time=?, due_date=?, tags=?, promo_id=?, content_url=?, canva_link=?, status=?, reach=?, views=?, likes=?, comments=?, shares=?, saves=?, impressions=?, watch_time=?, followers_growth=?, updated_at=datetime('now', 'localtime'), version=version+1 WHERE id=?`,
+    [title || existing.title, caption !== undefined ? caption : existing.caption, media ? JSON.stringify(media) : existing.media, platform || existing.platform, posting_date || existing.posting_date, posting_time || existing.posting_time, due_date !== undefined ? due_date : existing.due_date, tags ? JSON.stringify(tags) : existing.tags, promo_id || existing.promo_id, content_url !== undefined ? content_url : existing.content_url, canva_link !== undefined ? canva_link : (existing.canva_link || ''), status || existing.status, reach !== undefined ? reach : existing.reach, views !== undefined ? views : existing.views, likes !== undefined ? likes : existing.likes, comments !== undefined ? comments : existing.comments, shares !== undefined ? shares : existing.shares, saves !== undefined ? saves : existing.saves, impressions !== undefined ? impressions : existing.impressions, watch_time !== undefined ? watch_time : existing.watch_time, followers_growth !== undefined ? followers_growth : existing.followers_growth, req.params.id]);
   run('INSERT INTO content_versions (id, content_id, caption, media, version, edited_by, notes) VALUES (?,?,?,?,?,?,?)',
     [uuidv4(), req.params.id, existing.caption, existing.media, existing.version, user.id, 'Edited by ' + user.display_name]);
   run('INSERT INTO activity_logs (id, content_id, user_id, action, details, created_at) VALUES (?,?,?,?,?,datetime(\'now\', \'localtime\'))', [uuidv4(), req.params.id, user.id, 'edited', 'Content updated']);
@@ -725,7 +727,309 @@ app.get('/api/report', requireAuth(['admin']), (req, res) => {
   });
 });
 
+// --- Analytics Dashboard ---
+app.get('/api/analytics', requireAuth(), (req, res) => {
+  try {
+    const { date_from, date_to, platform, status, campaign, sort, order } = req.query;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
+    const offset = (page - 1) * limit;
+    const bf = brandFilter(req);
+
+    let where = `WHERE 1=1${bf.sql}`;
+    const params = [...bf.params];
+
+    if (date_from && date_to) { where += ' AND c.posting_date >= ? AND c.posting_date <= ?'; params.push(date_from, date_to); }
+    if (platform) { const plats = platform.split(','); where += ` AND c.platform IN (${plats.map(()=>'?').join(',')})`; params.push(...plats); }
+    if (status) { where += ' AND c.status = ?'; params.push(status); }
+    if (campaign) { where += ' AND c.campaign = ?'; params.push(campaign); }
+
+    const baseFrom = 'FROM contents c LEFT JOIN users cr ON c.creator_id = cr.id';
+
+    // KPI
+    const kpiRow = get(`SELECT COUNT(*) as totalContent, COALESCE(SUM(c.reach),0) as totalReach, COALESCE(SUM(c.views),0) as totalViews, COALESCE(SUM(c.impressions),0) as totalImpressions, COALESCE(SUM(c.likes+c.comments+c.shares+c.saves),0) as totalEngagement, COALESCE(SUM(c.followers_growth),0) as followersGrowth, COUNT(DISTINCT CASE WHEN c.campaign != '' THEN c.campaign END) as totalCampaign, CASE WHEN COUNT(*) > 0 THEN ROUND(AVG(c.reach),0) ELSE 0 END as avgReachPerContent, CASE WHEN SUM(c.reach) > 0 THEN ROUND(CAST(SUM(c.likes+c.comments+c.shares+c.saves) AS REAL) / SUM(c.reach) * 100, 2) ELSE 0 END as engagementRate ${baseFrom} ${where}`, params);
+
+    // Platform breakdown
+    const platforms = query(`SELECT c.platform, COUNT(*) as totalPost, COALESCE(SUM(c.reach),0) as reach, COALESCE(SUM(c.views),0) as views, COALESCE(SUM(c.likes),0) as likes, COALESCE(SUM(c.comments),0) as comments, COALESCE(SUM(c.shares),0) as shares, COALESCE(SUM(c.saves),0) as saves, COALESCE(SUM(c.impressions),0) as impressions, CASE WHEN SUM(c.reach) > 0 THEN ROUND(CAST(SUM(c.likes+c.comments+c.shares+c.saves) AS REAL) / SUM(c.reach) * 100, 2) ELSE 0 END as engagementRate ${baseFrom} ${where} GROUP BY c.platform ORDER BY reach DESC`, params);
+
+    // Daily views/reach
+    const dailyViews = query(`SELECT c.posting_date as date, COALESCE(SUM(c.views),0) as views, COALESCE(SUM(c.reach),0) as reach ${baseFrom} ${where} AND c.posting_date IS NOT NULL AND c.posting_date != '' GROUP BY c.posting_date ORDER BY c.posting_date ASC`, params);
+
+    // Engagement per platform
+    const engagementPerPlatform = query(`SELECT c.platform, COALESCE(SUM(c.likes+c.comments+c.shares+c.saves),0) as engagement ${baseFrom} ${where} GROUP BY c.platform ORDER BY engagement DESC`, params);
+
+    // Content distribution by platform
+    const contentByPlatform = query(`SELECT c.platform, COUNT(*) as count ${baseFrom} ${where} GROUP BY c.platform ORDER BY count DESC`, params);
+
+    // Campaign breakdown
+    const contentPerCampaign = query(`SELECT CASE WHEN c.campaign = '' THEN 'No Campaign' ELSE c.campaign END as campaign, COUNT(*) as count ${baseFrom} ${where} GROUP BY c.campaign ORDER BY count DESC`, params);
+
+    // Followers growth daily
+    const followersGrowthDaily = query(`SELECT c.posting_date as date, COALESCE(SUM(c.followers_growth),0) as growth ${baseFrom} ${where} AND c.posting_date IS NOT NULL AND c.posting_date != '' GROUP BY c.posting_date ORDER BY c.posting_date ASC`, params);
+
+    // Top content by engagement
+    const topSql = `SELECT c.*, cr.display_name as creator_name ${baseFrom} ${where} ORDER BY (c.likes+c.comments+c.shares+c.saves) DESC LIMIT 10`;
+    const topContent = query(topSql, params);
+
+    // Bottom content by engagement
+    const bottomSql = `SELECT c.*, cr.display_name as creator_name ${baseFrom} ${where} AND (c.likes+c.comments+c.shares+c.saves) > 0 ORDER BY (c.likes+c.comments+c.shares+c.saves) ASC LIMIT 10`;
+    const bottomContent = query(bottomSql, params);
+
+    // Total count for all matching content
+    const totalRow = get(`SELECT COUNT(*) as c ${baseFrom} ${where}`, params);
+
+    res.json({
+      kpi: kpiRow,
+      platforms,
+      topContent,
+      bottomContent,
+      dailyViews,
+      engagementPerPlatform,
+      contentByPlatform,
+      contentPerCampaign,
+      followersGrowthDaily,
+      total: totalRow.c,
+      page,
+      limit,
+      totalPages: Math.ceil(totalRow.c / limit) || 1
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Settings API ---
+app.get('/api/settings/:key', requireAuth(['admin']), (req, res) => {
+  const row = get('SELECT value FROM settings WHERE key = ?', [req.params.key]);
+  res.json({ key: req.params.key, value: row?.value || null });
+});
+
+app.put('/api/settings/:key', requireAuth(['admin']), (req, res) => {
+  const { value } = req.body;
+  if (value === undefined || value === null) {
+    run('DELETE FROM settings WHERE key = ?', [req.params.key]);
+  } else {
+    run(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', 'localtime'))
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now', 'localtime')`, [req.params.key, String(value)]);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/ig/status', requireAuth(['admin']), (req, res) => {
+  const apiKey = process.env.COMPOSIO_API_KEY || (get('SELECT value FROM settings WHERE key = ?', ['COMPOSIO_API_KEY'])?.value);
+  const connectedAccountId = process.env.IG_CONNECTED_ACCOUNT_ID || (get('SELECT value FROM settings WHERE key = ?', ['IG_CONNECTED_ACCOUNT_ID'])?.value);
+  const entityId = process.env.COMPOSIO_ENTITY_ID || (get('SELECT value FROM settings WHERE key = ?', ['COMPOSIO_ENTITY_ID'])?.value);
+  res.json({
+    configured: !!(apiKey && connectedAccountId && entityId),
+    hasApiKey: !!apiKey,
+    hasConnectedAccount: !!connectedAccountId,
+    hasEntityId: !!entityId
+  });
+});
+
+// Helper function to get IG config
+function getIgConfig() {
+  return {
+    apiKey: process.env.COMPOSIO_API_KEY || (get('SELECT value FROM settings WHERE key = ?', ['COMPOSIO_API_KEY'])?.value),
+    connectedAccountId: process.env.IG_CONNECTED_ACCOUNT_ID || (get('SELECT value FROM settings WHERE key = ?', ['IG_CONNECTED_ACCOUNT_ID'])?.value),
+    entityId: process.env.COMPOSIO_ENTITY_ID || (get('SELECT value FROM settings WHERE key = ?', ['COMPOSIO_ENTITY_ID'])?.value)
+  };
+}
+
+// Modify sync-ig to use settings table as fallback
+app.post('/api/analytics/sync-ig', requireAuth(), async (req, res) => {
+  try {
+    const igConfig = getIgConfig();
+    const apiKey = igConfig.apiKey;
+    const connectedAccountId = igConfig.connectedAccountId;
+    const entityId = igConfig.entityId;
+    if (!apiKey || !connectedAccountId || !entityId) {
+      return res.status(400).json({ error: 'IG belum dikonfigurasi. Buka Analytics > Setup IG untuk konfigurasi.' });
+    }
+    const composio = new Composio({ apiKey });
+
+    let userInfo;
+    try {
+      userInfo = await composio.tools.execute('INSTAGRAM_GET_USER_INFO', {
+        userId: entityId, connectedAccountId, arguments: {},
+        dangerouslySkipVersionCheck: true
+      });
+    } catch (e) {
+      const cause = e.cause || e;
+      console.error('[Sync IG] Error detail:', cause);
+      return res.status(400).json({ error: 'Gagal connect ke Instagram via Composio. Detail: ' + (cause?.message || e.message || cause) });
+    }
+    const igUserId = userInfo?.id || userInfo?.data?.id || 'me';
+
+    let mediaRes;
+    try {
+      mediaRes = await composio.tools.execute('INSTAGRAM_GET_IG_USER_MEDIA', {
+        userId: entityId, connectedAccountId,
+        arguments: { ig_user_id: igUserId },
+        dangerouslySkipVersionCheck: true
+      });
+    } catch (e) {
+      return res.status(400).json({ error: 'Gagal ambil media IG. Detail: ' + e.message });
+    }
+    const igMediaList = mediaRes?.data?.data || mediaRes?.data || [];
+
+    const dbContents = query("SELECT id, title, posting_date, ig_media_id, reach, views, likes, comments, shares, saves, impressions, watch_time, followers_growth FROM contents WHERE platform = 'ig' AND brand_id = ?", [req.session.brand_id]);
+
+    let synced = 0, failed = 0, unmatched = 0, details = [];
+
+    const dateMap = {};
+    for (const c of dbContents) {
+      const d = c.posting_date || '';
+      if (!dateMap[d]) dateMap[d] = [];
+      dateMap[d].push(c);
+    }
+
+    for (const igMedia of igMediaList) {
+      try {
+        const igId = igMedia.id;
+        if (!igId) continue;
+
+        let match = dbContents.find(c => c.ig_media_id === igId);
+
+        if (!match) {
+          const igTimestamp = igMedia.timestamp || igMedia.created_time || '';
+          const igDate = igTimestamp.substring(0, 10);
+          const candidates = dateMap[igDate] || [];
+          match = candidates.find(c => !c.ig_media_id);
+          if (!match && candidates.length > 0) match = candidates[0];
+        }
+
+        if (!match) { unmatched++; continue; }
+
+        run('UPDATE contents SET ig_media_id = ? WHERE id = ?', [igId, match.id]);
+
+        const insightsRes = await composio.tools.execute('INSTAGRAM_GET_IG_MEDIA_INSIGHTS', {
+          userId: entityId, connectedAccountId,
+          arguments: {
+            ig_media_id: igId,
+            metric: ['reach', 'views', 'likes', 'comments', 'shares', 'saved', 'impressions', 'total_interactions']
+          },
+          dangerouslySkipVersionCheck: true
+        });
+
+        const metrics = {};
+        const insightData = insightsRes?.data?.data || insightsRes?.data || [];
+        for (const m of insightData) {
+          const val = m.values?.[0]?.value;
+          if (val === undefined) continue;
+          const name = m.name?.toLowerCase();
+          if (name === 'reach') metrics.reach = val;
+          else if (name === 'views') metrics.views = val;
+          else if (name === 'likes') metrics.likes = val;
+          else if (name === 'comments') metrics.comments = val;
+          else if (name === 'shares') metrics.shares = val;
+          else if (name === 'saved') metrics.saves = val;
+          else if (name === 'impressions') metrics.impressions = val;
+        }
+
+        if (Object.keys(metrics).length > 0) {
+          const setClauses = Object.keys(metrics).map(k => `${k} = ?`).join(', ');
+          const values = Object.values(metrics);
+          run(`UPDATE contents SET ${setClauses}, last_sync = datetime('now', 'localtime') WHERE id = ?`, [...values, match.id]);
+        }
+
+        synced++;
+        details.push({ title: match.title, ig_media_id: igId, metrics });
+      } catch (e) {
+        failed++;
+        details.push({ error: e.message });
+      }
+    }
+
+    res.json({ ok: true, synced, failed, unmatched, details, total_ig_media: igMediaList.length, total_db_content: dbContents.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- TikTok Sync ---
+app.get('/api/tiktok/status', requireAuth(['admin']), (req, res) => {
+  const connectedAccountId = process.env.TIKTOK_CONNECTED_ACCOUNT_ID || (get('SELECT value FROM settings WHERE key = ?', ['TIKTOK_CONNECTED_ACCOUNT_ID'])?.value);
+  res.json({
+    configured: !!connectedAccountId,
+    hasConnectedAccount: !!connectedAccountId
+  });
+});
+
+app.post('/api/analytics/sync-tiktok', requireAuth(), async (req, res) => {
+  try {
+    const igConfig = getIgConfig();
+    const connectedAccountId = process.env.TIKTOK_CONNECTED_ACCOUNT_ID || (get('SELECT value FROM settings WHERE key = ?', ['TIKTOK_CONNECTED_ACCOUNT_ID'])?.value);
+    if (!igConfig.apiKey || !connectedAccountId || !igConfig.entityId) {
+      return res.status(400).json({ error: 'TikTok belum dikonfigurasi. Setup lewat Analytics.' });
+    }
+    const composio = new Composio({ apiKey: igConfig.apiKey });
+
+    const mediaRes = await composio.tools.execute('TIKTOK_LIST_VIDEOS', {
+      userId: igConfig.entityId, connectedAccountId,
+      arguments: { max_count: 100 },
+      dangerouslySkipVersionCheck: true
+    });
+    const videoList = mediaRes?.data?.data || mediaRes?.data || [];
+
+    const dbContents = query("SELECT id, title, posting_date, ig_media_id, reach, views, likes, comments, shares, saves, impressions, watch_time, followers_growth FROM contents WHERE platform = 'tiktok' AND brand_id = ?", [req.session.brand_id]);
+
+    let synced = 0, failed = 0, unmatched = 0;
+
+    const dateMap = {};
+    for (const c of dbContents) {
+      const d = c.posting_date || '';
+      if (!dateMap[d]) dateMap[d] = [];
+      dateMap[d].push(c);
+    }
+
+    for (const video of videoList) {
+      try {
+        const vid = video.id;
+        if (!vid) continue;
+
+        let match = dbContents.find(c => c.ig_media_id === vid);
+        if (!match) {
+          const ts = video.create_time || video.timestamp || '';
+          const d = ts.substring(0, 10);
+          const candidates = dateMap[d] || [];
+          match = candidates.find(c => !c.ig_media_id) || candidates[0];
+        }
+
+        if (!match) { unmatched++; continue; }
+
+        run('UPDATE contents SET ig_media_id = ? WHERE id = ?', [vid, match.id]);
+
+        const metrics = {};
+        if (video.view_count !== undefined) metrics.views = video.view_count;
+        if (video.like_count !== undefined) metrics.likes = video.like_count;
+        if (video.comment_count !== undefined) metrics.comments = video.comment_count;
+        if (video.share_count !== undefined) metrics.shares = video.share_count;
+
+        if (Object.keys(metrics).length > 0) {
+          const setClauses = Object.keys(metrics).map(k => `${k} = ?`).join(', ');
+          const values = Object.values(metrics);
+          run(`UPDATE contents SET ${setClauses}, last_sync = datetime('now', 'localtime') WHERE id = ?`, [...values, match.id]);
+        }
+
+        synced++;
+      } catch (e) {
+        failed++;
+      }
+    }
+
+    res.json({ ok: true, synced, failed, unmatched, total_videos: videoList.length, total_db_content: dbContents.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- AI Report Analysis ---
+app.get('/api/analytics/last-sync', requireAuth(), (req, res) => {
+  const row = get("SELECT MAX(last_sync) as last_sync FROM contents WHERE brand_id = ? AND last_sync != '' AND last_sync IS NOT NULL", [req.session.brand_id]);
+  res.json({ last_sync: row?.last_sync || null });
+});
+
 app.post('/api/report/ai-analyze', requireAuth(['admin']), async (req, res) => {
   try {
     const brandId = req.session.brand_id;
@@ -1114,6 +1418,67 @@ getDb().then(() => {
     const users = query('SELECT id FROM users');
     users.forEach(u => checkDeadlineNotifications(u.id));
   });
+  // Auto-sync IG setiap jam 2 pagi
+  const igConfig = getIgConfig();
+  if (igConfig.apiKey && igConfig.connectedAccountId) {
+    cron.schedule('0 2 * * *', async () => {
+      console.log('[Sync IG] Auto-sync dimulai...');
+      try {
+        const composio = new Composio({ apiKey: igConfig.apiKey });
+        const ccId = igConfig.connectedAccountId;
+        const userInfo = await composio.tools.execute('INSTAGRAM_GET_USER_INFO', {
+          userId: igConfig.entityId, connectedAccountId: ccId, arguments: {},
+          dangerouslySkipVersionCheck: true
+        });
+        const igUserId = userInfo?.id || userInfo?.data?.id || 'me';
+        const mediaRes = await composio.tools.execute('INSTAGRAM_GET_IG_USER_MEDIA', {
+          userId: igConfig.entityId, connectedAccountId: ccId, arguments: { ig_user_id: igUserId },
+          dangerouslySkipVersionCheck: true
+        });
+        const igMediaList = mediaRes?.data?.data || mediaRes?.data || [];
+        const dbContents = query("SELECT id, posting_date, ig_media_id FROM contents WHERE platform = 'ig'");
+        const dateMap = {};
+        for (const c of dbContents) { const d = c.posting_date || ''; if (!dateMap[d]) dateMap[d] = []; dateMap[d].push(c); }
+        let count = 0;
+        for (const igMedia of igMediaList) {
+          const igId = igMedia.id; if (!igId) continue;
+          let match = dbContents.find(c => c.ig_media_id === igId);
+          if (!match) {
+            const igDate = (igMedia.timestamp || igMedia.created_time || '').substring(0, 10);
+            const candidates = dateMap[igDate] || [];
+            match = candidates.find(c => !c.ig_media_id) || candidates[0];
+            if (match) run('UPDATE contents SET ig_media_id = ? WHERE id = ?', [igId, match.id]);
+          }
+          if (!match) continue;
+          try {
+            const insightsRes = await composio.tools.execute('INSTAGRAM_GET_IG_MEDIA_INSIGHTS', {
+              userId: igConfig.entityId, connectedAccountId: ccId,
+              arguments: { ig_media_id: igId, metric: ['reach', 'views', 'likes', 'comments', 'shares', 'saved'] },
+              dangerouslySkipVersionCheck: true
+            });
+            const metrics = {};
+            for (const m of (insightsRes?.data?.data || insightsRes?.data || [])) {
+              const val = m.values?.[0]?.value, name = m.name?.toLowerCase();
+              if (val !== undefined) {
+                if (name === 'reach') metrics.reach = val;
+                else if (name === 'views') metrics.views = val;
+                else if (name === 'likes') metrics.likes = val;
+                else if (name === 'comments') metrics.comments = val;
+                else if (name === 'shares') metrics.shares = val;
+                else if (name === 'saved') metrics.saves = val;
+              }
+            }
+            if (Object.keys(metrics).length > 0) {
+              const setClauses = Object.keys(metrics).map(k => `${k} = ?`).join(', ');
+              run(`UPDATE contents SET ${setClauses}, last_sync = datetime('now', 'localtime') WHERE id = ?`, [...Object.values(metrics), match.id]);
+            }
+            count++;
+          } catch(e) { /* skip per-item error */ }
+        }
+        console.log(`[Sync IG] Auto-sync selesai: ${count} konten diupdate`);
+      } catch(e) { console.error('[Sync IG] Auto-sync gagal:', e.message); }
+    });
+  }
   // Auto-cleanup activity logs older than 7 days (runs daily at 03:00)
   cron.schedule('0 3 * * *', () => {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

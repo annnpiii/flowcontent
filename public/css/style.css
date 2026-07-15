@@ -794,6 +794,7 @@ textarea.input {
   #pageContent {
     padding: 12px !important;
     min-width: 0 !important;
+    overflow-x: hidden !important;
   }
   #pageTitle { font-size: 18px !important; }
 
@@ -870,17 +871,20 @@ textarea.input {
     display: block !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
+    max-width: 100% !important;
+    width: 100% !important;
+    touch-action: pan-x;
   }
-  .card.overflow-hidden { overflow: visible !important; }
   .table-wrap table {
-    min-width: 480px !important;
     width: max-content !important;
+    min-width: 100%;
   }
   .table-wrap th, .table-wrap td {
     padding: 5px 6px !important;
     font-size: 11px !important;
-    white-space: nowrap !important;
+    white-space: nowrap;
   }
+  .table-wrap td.whitespace-normal { white-space: normal; }
   .plan-table th:not(:first-child):not(:nth-last-child(-n+2)),
   .plan-table td:not(:first-child):not(:nth-last-child(-n+2)) {
     white-space: normal !important;
@@ -950,3 +954,6 @@ textarea.input {
   .notif-time { font-size: 10px !important; }
   .notif-item .notif-del { width: 20px !important; height: 20px !important; }
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; display: inline-block; }
